@@ -48,7 +48,7 @@ export const ENV = {
   turnstileSiteKey: str(env.VITE_TURNSTILE_SITE_KEY),
 } as const;
 
-/** Path the app is served from: "/" normally, "/smart-radar/" on GitHub Pages. */
+/** Path the app is served from: "/" normally, "/app/" on GitHub Pages. */
 export const BASE_PATH = import.meta.env.BASE_URL;
 
 /**

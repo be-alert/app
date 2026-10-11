@@ -7,7 +7,7 @@ import { fileURLToPath, URL } from 'node:url';
 /** Refuse to build if a server secret is exposed through a VITE_ variable. */
 function guardSecrets(mode: string): Plugin {
   return {
-    name: 'smart-radar-guard-secrets',
+    name: 'be-alert-guard-secrets',
     configResolved(config) {
       const env = loadEnv(mode, config.envDir || config.root, 'VITE_');
       const leaked = Object.entries(env)
@@ -32,7 +32,7 @@ function contentSecurityPolicy(mode: string): Plugin {
   let enabled = false;
   let supabase = '';
   return {
-    name: 'smart-radar-csp',
+    name: 'be-alert-csp',
     configResolved(config) {
       // Not for the Android build: Capacitor injects its own inline bridge script at runtime.
       enabled = config.command === 'build' && mode !== 'android';
@@ -117,7 +117,7 @@ function webApp(mode: string) {
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
   // GitHub Pages serves the site from /<repo-name>/; everything else from /.
-  const base = mode === 'pages' ? '/smart-radar/' : '/';
+  const base = mode === 'pages' ? '/app/' : '/';
   return {
   base,
   plugins: [react(), guardSecrets(mode), contentSecurityPolicy(mode), webApp(mode)],
