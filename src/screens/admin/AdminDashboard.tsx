@@ -793,11 +793,14 @@ function UserSheet({ user: u, onClose }: { user: AdminUser | null; onClose(): vo
   const [trust, setTrust] = useState(50);
   const [reason, setReason] = useState('');
   const [confirmBan, setConfirmBan] = useState(false);
+  const [confirmVerify, setConfirmVerify] = useState(false);
+  const [verifyNote, setVerifyNote] = useState('');
 
   useEffect(() => {
     if (u) {
       setTrust(u.trust_score);
       setReason('');
+      setVerifyNote('');
     }
   }, [u?.id, u?.trust_score]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -882,6 +885,34 @@ function UserSheet({ user: u, onClose }: { user: AdminUser | null; onClose(): vo
                 <span className="ml-auto text-xs font-medium text-ink-3">owner only</span>
               </button>
             )}
+            {u.verification_status === 'pending' && (
+              <div className="rounded-xl border border-warning-500/30 bg-warning-50 p-3 dark:bg-warning-500/10">
+                <p className="text-[13px] font-semibold text-warning-700 dark:text-warning-500">CNIC submitted — waiting for review</p>
+                <p className="mt-0.5 text-xs text-ink-2">Check the CNIC in the Verification tab, or decide here. Approval lasts 1 year.</p>
+                <div className="mt-2.5 grid grid-cols-2 gap-2">
+                  <button
+                    className="btn-primary btn-sm"
+                    disabled={busy}
+                    onClick={() => run(`${u.display_name} is now verified`, () => api.admin.reviewVerification(me!.id, u.id, 'approved', '', null))}
+                  >
+                    <BadgeCheck className="h-4 w-4" /> Approve
+                  </button>
+                  <button
+                    className="btn-outline btn-sm text-danger-600"
+                    disabled={busy}
+                    onClick={() => run('Verification rejected', () => api.admin.reviewVerification(me!.id, u.id, 'rejected', 'Rejected from the user panel', null))}
+                  >
+                    <XCircle className="h-4 w-4" /> Reject
+                  </button>
+                </div>
+              </div>
+            )}
+            {u.verification_status !== 'approved' && u.verification_status !== 'pending' && (
+              <button className="btn-outline w-full justify-start" disabled={busy} onClick={() => setConfirmVerify(true)}>
+                <BadgeCheck className="h-4 w-4 text-primary-600" /> Verify this user
+                <span className="ml-auto text-xs font-medium text-ink-3">blue badge · 1 year</span>
+              </button>
+            )}
             {u.verification_status === 'approved' && (
               <button
                 className="btn-outline w-full justify-start"
@@ -904,6 +935,24 @@ function UserSheet({ user: u, onClose }: { user: AdminUser | null; onClose(): vo
           </div>
         </div>
       </Sheet>
+
+      <ConfirmDialog
+        open={confirmVerify}
+        title={`Verify ${u.display_name}?`}
+        body="They get the blue verified badge and +15 trust for 1 year. Only do this after checking who they are (CNIC, business documents or in person)."
+        confirmLabel="Verify"
+        busy={busy}
+        onClose={() => setConfirmVerify(false)}
+        onConfirm={async () => {
+          const ok = await run(`${u.display_name} is now verified`, () =>
+            api.admin.reviewVerification(me!.id, u.id, 'approved', verifyNote.trim() || 'Verified manually by admin', null)
+          );
+          if (ok) setConfirmVerify(false);
+        }}
+      >
+        <label className="label mt-2">How did you check? (saved to the audit log)</label>
+        <input className="input" value={verifyNote} onChange={(e) => setVerifyNote(e.target.value)} placeholder="e.g., CNIC seen in person, shop visited" />
+      </ConfirmDialog>
 
       <ConfirmDialog
         open={confirmBan}
