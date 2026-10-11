@@ -80,7 +80,9 @@ export function AdminDashboard() {
   const [tab, setTab] = useState<Tab>('overview');
   const overview = useQuery(() => api.admin.overview(), [api], { scopes: ['posts', 'admin'] });
   const o = overview.data;
-  const badges: Partial<Record<Tab, number>> = o ? { moderation: o.reportedPosts, verification: o.pendingVerifications, listings: o.pendingListings } : {};
+  const badges: Partial<Record<Tab, number>> = o
+    ? { moderation: o.reportedPosts, verification: o.pendingVerifications + (o.pendingDrivers ?? 0), listings: o.pendingListings }
+    : {};
   const allTabs = isOwner ? [...TABS, ...OWNER_TABS] : TABS;
   const current = allTabs.find((t) => t.id === tab) ?? TABS[0];
 
@@ -244,6 +246,7 @@ function Overview({ data, loading, goto }: { data: AdminOverview | undefined; lo
   const todo = [
     { label: 'Review reported posts', n: data.reportedPosts, tab: 'moderation' as Tab, icon: Flag },
     { label: 'Verify CNIC requests', n: data.pendingVerifications, tab: 'verification' as Tab, icon: UserCheck },
+    { label: 'Check driving licences', n: data.pendingDrivers ?? 0, tab: 'verification' as Tab, icon: CarFront },
     { label: 'Approve business listings', n: data.pendingListings, tab: 'listings' as Tab, icon: Store },
   ];
   const open = todo.reduce((s, t) => s + t.n, 0);
@@ -277,9 +280,9 @@ function Overview({ data, loading, goto }: { data: AdminOverview | undefined; lo
         <Kpi
           icon={UserCheck}
           label="Pending approvals"
-          value={data.pendingVerifications + data.pendingListings}
-          hint={`${data.pendingVerifications} CNIC · ${data.pendingListings} listings`}
-          tone={data.pendingVerifications + data.pendingListings ? 'warning' : 'neutral'}
+          value={data.pendingVerifications + (data.pendingDrivers ?? 0) + data.pendingListings}
+          hint={`${data.pendingVerifications} CNIC · ${data.pendingDrivers ?? 0} licences · ${data.pendingListings} listings`}
+          tone={data.pendingVerifications + (data.pendingDrivers ?? 0) + data.pendingListings ? 'warning' : 'neutral'}
           onClick={() => goto('verification')}
         />
       </div>
@@ -1258,6 +1261,10 @@ function Listings() {
                   <p className="text-xs text-ink-3">
                     {getCategory(l.category).label} · submitted {timeAgo(l.created_at)}
                   </p>
+                  <p className={cn('mt-1 inline-flex items-center gap-1 text-xs font-semibold', l.owner_verified ? 'text-success-600' : 'text-warning-600')}>
+                    {l.owner_verified ? <BadgeCheck className="h-3.5 w-3.5" /> : <AlertTriangle className="h-3.5 w-3.5" />}
+                    {l.owner_name} · {l.owner_verified ? 'CNIC verified' : 'CNIC not verified'}
+                  </p>
                 </div>
                 <Badge tone={l.status === 'approved' ? 'success' : l.status === 'rejected' ? 'danger' : 'warning'}>{l.status}</Badge>
               </div>
@@ -1271,6 +1278,23 @@ function Listings() {
                 {l.location_label && <span>{l.location_label}</span>}
               </div>
               {l.admin_notes && <p className="mt-3 rounded-lg bg-surface-2 px-3 py-2 text-xs text-ink-2">Note: {l.admin_notes}</p>}
+              {l.status === 'pending' && !l.owner_verified && (
+                <p className="mt-3 rounded-lg bg-warning-50 px-3 py-2 text-xs text-warning-700 dark:bg-warning-500/10 dark:text-warning-500">
+                  Only CNIC-verified owners can be listed. Approve their CNIC in the Verification tab first (or reject this with a note asking them to verify).
+                </p>
+              )}
+              {l.status === 'approved' && (
+                <div className="mt-4 flex gap-2">
+                  <input className="input h-10 flex-1" placeholder="Reason (shown to the owner)" value={notes[l.id] ?? ''} onChange={(e) => setNotes({ ...notes, [l.id]: e.target.value })} />
+                  <button
+                    className="btn-secondary h-10 shrink-0 text-danger-600"
+                    disabled={busy}
+                    onClick={() => run('Removed from the directory', () => api.admin.reviewListing(user!.id, l.id, 'removed', notes[l.id] || 'Removed from the directory by Be Alert'))}
+                  >
+                    <Trash2 className="h-4 w-4" /> Remove
+                  </button>
+                </div>
+              )}
               {l.status === 'pending' && (
                 <>
                   <input className="input mt-4 h-10" placeholder="Notes for the owner (optional)" value={notes[l.id] ?? ''} onChange={(e) => setNotes({ ...notes, [l.id]: e.target.value })} />
@@ -1278,7 +1302,12 @@ function Listings() {
                     <button className="btn-secondary text-danger-600" disabled={busy} onClick={() => run('Listing rejected', () => api.admin.reviewListing(user!.id, l.id, 'rejected', notes[l.id] ?? ''))}>
                       <XCircle className="h-4 w-4" /> Reject
                     </button>
-                    <button className="btn-primary" disabled={busy} onClick={() => run('Listing approved', () => api.admin.reviewListing(user!.id, l.id, 'approved', notes[l.id] ?? ''))}>
+                    <button
+                      className="btn-primary"
+                      disabled={busy || !l.owner_verified}
+                      title={l.owner_verified ? undefined : 'Verify the owner’s CNIC first'}
+                      onClick={() => run('Listing approved', () => api.admin.reviewListing(user!.id, l.id, 'approved', notes[l.id] ?? ''))}
+                    >
                       <CheckCircle2 className="h-4 w-4" /> Approve
                     </button>
                   </div>

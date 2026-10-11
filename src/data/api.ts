@@ -98,7 +98,8 @@ export interface AdminApi {
   reviewDriver(adminId: string, userId: string, decision: 'approved' | 'rejected' | 'revoked', notes: string): Promise<void>;
   reviewVerification(adminId: string, userId: string, decision: 'approved' | 'rejected', notes: string, expiry: string | null): Promise<void>;
   listListings(status?: ProviderListing['status']): Promise<ProviderListing[]>;
-  reviewListing(adminId: string, id: string, decision: 'approved' | 'rejected', notes: string): Promise<void>;
+  /** 'removed' takes an approved listing off the directory (recorded as rejected, with the note). */
+  reviewListing(adminId: string, id: string, decision: 'approved' | 'rejected' | 'removed', notes: string): Promise<void>;
   upsertEmergencyContact(adminId: string, c: Omit<EmergencyContact, 'id' | 'created_at'> & { id?: string }): Promise<void>;
   deleteEmergencyContact(adminId: string, id: string): Promise<void>;
   auditLog(): Promise<AdminAuditLog[]>;
@@ -146,6 +147,7 @@ export interface DataApi {
 
   submitListing(userId: string, input: ListingInput): Promise<void>;
   listMyListings(userId: string): Promise<ProviderListing[]>;
+  deleteMyListing(userId: string, id: string): Promise<void>;
   /** Approved, admin-reviewed business listings (public directory). */
   listProviders(): Promise<ProviderListing[]>;
   /** App-wide settings (public read). */

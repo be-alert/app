@@ -303,7 +303,9 @@ function VerificationSection({ profile }: { profile: ProfileT }) {
         <form onSubmit={submit} className="space-y-3">
           {status === 'rejected' && (
             <p className="rounded-xl bg-danger-50 px-3.5 py-2.5 text-[13px] text-danger-700 dark:bg-danger-500/10 dark:text-danger-400">
-              Your last request wasn’t approved. Make sure the CNIC number matches the card and both photos are clear, then try again.
+              Your last request wasn’t approved.{' '}
+              {profile.verification_history?.[0]?.notes ? <b>Reason: {profile.verification_history[0].notes}. </b> : null}
+              Make sure the CNIC number matches the card and both photos are clear, then try again.
             </p>
           )}
           {v === 'expired' && <p className="rounded-xl bg-surface-2 px-3.5 py-2.5 text-[13px] text-ink-2">Your verification has expired — please re-submit.</p>}
@@ -342,7 +344,7 @@ function VerificationSection({ profile }: { profile: ProfileT }) {
             <p className="flex items-center gap-2 text-sm font-bold text-ink">
               <Store className="h-4 w-4 text-ink-3" /> Business listings
             </p>
-            <p className="text-xs text-ink-2">Get listed in the verified provider directory after admin approval.</p>
+            <p className="text-xs text-ink-2">Get listed in the verified business directory. Your CNIC must be verified first.</p>
           </div>
           <button className="btn-secondary btn-sm" onClick={() => setListingOpen(true)}>
             <Plus className="h-4 w-4" /> Submit
@@ -351,13 +353,36 @@ function VerificationSection({ profile }: { profile: ProfileT }) {
         {!!listings?.length && (
           <ul className="mt-3 space-y-2">
             {listings.map((l) => (
-              <li key={l.id} className="flex items-center gap-3 rounded-xl bg-surface-2 px-3.5 py-2.5">
-                <Briefcase className="h-4 w-4 text-ink-3" />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-semibold text-ink">{l.business_name}</p>
-                  <p className="text-xs text-ink-3">{getCategory(l.category).label}</p>
+              <li key={l.id} className="rounded-xl bg-surface-2 px-3.5 py-2.5">
+                <div className="flex items-center gap-3">
+                  <Briefcase className="h-4 w-4 text-ink-3" />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold text-ink">{l.business_name}</p>
+                    <p className="text-xs text-ink-3">{getCategory(l.category).label}</p>
+                  </div>
+                  <Badge tone={l.status === 'approved' ? 'success' : l.status === 'rejected' ? 'danger' : 'warning'}>
+                    {l.status === 'approved' ? 'listed' : l.status}
+                  </Badge>
+                  <button
+                    className="rounded-lg p-1.5 text-ink-3 hover:bg-surface hover:text-danger-600"
+                    aria-label={`Delete ${l.business_name}`}
+                    onClick={async () => {
+                      if (!window.confirm(`Delete “${l.business_name}”? This removes it from Be Alert.`)) return;
+                      try {
+                        await api.deleteMyListing(profile.id, l.id);
+                        toast.success('Listing deleted');
+                      } catch (e) {
+                        toast.error('Could not delete', (e as Error).message);
+                      }
+                    }}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
                 </div>
-                <Badge tone={l.status === 'approved' ? 'success' : l.status === 'rejected' ? 'danger' : 'warning'}>{l.status}</Badge>
+                {l.status === 'rejected' && l.admin_notes && <p className="mt-1.5 text-xs text-danger-600">Reason: {l.admin_notes}</p>}
+                {l.status === 'pending' && status !== 'approved' && (
+                  <p className="mt-1.5 text-xs text-warning-700 dark:text-warning-500">Verify your CNIC above — only verified owners are listed.</p>
+                )}
               </li>
             ))}
           </ul>
@@ -421,7 +446,9 @@ function DriverSection({ profile }: { profile: ProfileT }) {
         <form onSubmit={submit} className="space-y-3">
           {status === 'rejected' && (
             <p className="rounded-xl bg-danger-50 px-3.5 py-2.5 text-[13px] text-danger-700 dark:bg-danger-500/10 dark:text-danger-400">
-              Your licence wasn’t approved (or has expired). Make sure the details match the card and both photos are clear, then try again.
+              Your licence wasn’t approved (or has expired).{' '}
+              {profile.driver_review_notes ? <b>Reason: {profile.driver_review_notes}. </b> : null}
+              Make sure the details match the card and both photos are clear, then try again.
             </p>
           )}
           <div className="grid gap-3 sm:grid-cols-2">

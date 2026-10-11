@@ -25,13 +25,14 @@ import type {
   PublicProfile,
   VerificationRequest,
   DriverRequest,
+  ProviderListing,
 } from '@/lib/types';
 
 const PROFILE_COLUMNS =
   'id, phone, display_name, avatar_url, is_business, is_admin, verification_status, verification_date, ' +
   'verification_expiry, verification_history, trust_score, radius_km, saved_locations, watched_areas, ' +
   'pinned_categories, muted_categories, digest_categories, digest_enabled, digest_time, blocked_users, theme, created_at, ' +
-  'is_banned, banned_reason, is_owner, driver_status, driver_licence_expiry, driver_verified_until';
+  'is_banned, banned_reason, is_owner, driver_status, driver_licence_expiry, driver_verified_until, driver_review_notes';
 
 const sb = () => requireSupabase();
 
@@ -380,12 +381,20 @@ const admin: AdminApi = {
     if (status) q = q.eq('status', status);
     const { data, error } = await q;
     fail(error);
-    return data ?? [];
+    const rows = (data ?? []) as ProviderListing[];
+    // Who submitted each listing, and whether their CNIC is verified (approval requires it).
+    const owners = await authorsFor(rows.map((r) => r.user_id));
+    return rows.map((r) => {
+      const o = owners.get(r.user_id);
+      const verified = o?.verification_status === 'approved' && (!o.verification_expiry || new Date(o.verification_expiry) > new Date());
+      return { ...r, owner_name: o?.display_name || 'Unnamed user', owner_verified: Boolean(verified) };
+    });
   },
   async reviewListing(_adminId, id, decision, notes) {
     const { error } = await sb().rpc('admin_review_listing', { p_listing_id: id, p_decision: decision, p_notes: notes });
     fail(error);
     emitChange('admin');
+    emitChange('listings');
   },
   async upsertEmergencyContact(adminId, c) {
     const { id, ...rest } = c;
@@ -637,6 +646,11 @@ export const liveApi: DataApi = {
 
   async submitListing(userId, input) {
     const { error } = await sb().from('provider_listings').insert({ ...input, user_id: userId, status: 'pending' });
+    fail(error);
+    emitChange('listings');
+  },
+  async deleteMyListing(userId, id) {
+    const { error } = await sb().from('provider_listings').delete().eq('id', id).eq('user_id', userId);
     fail(error);
     emitChange('listings');
   },

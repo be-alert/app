@@ -578,12 +578,21 @@ const admin: AdminApi = {
   },
   async listListings(status) {
     const d = ensure();
-    return d.listings.filter((l) => !status || l.status === status).sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at));
+    return d.listings
+      .filter((l) => !status || l.status === status)
+      .sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at))
+      .map((l) => {
+        const u = d.users.find((x) => x.id === l.user_id);
+        return { ...l, owner_name: u?.display_name || 'Unnamed user', owner_verified: u?.verification_status === 'approved' };
+      });
   },
   async reviewListing(adminId, id, decision, notes) {
     const d = ensure();
     const l = need(d.listings.find((x) => x.id === id));
-    l.status = decision;
+    const owner = d.users.find((x) => x.id === l.user_id);
+    if (decision === 'approved' && owner?.verification_status !== 'approved')
+      throw new Error('The owner hasn’t verified their CNIC yet — verify them first (Verification tab), then approve');
+    l.status = decision === 'approved' ? 'approved' : 'rejected';
     l.admin_notes = notes || null;
     l.reviewed_by = adminId;
     l.reviewed_at = new Date().toISOString();
@@ -953,6 +962,12 @@ export const demoApi: DataApi = {
       created_at: now,
       updated_at: now,
     });
+    save();
+    emitChange('listings');
+  },
+  async deleteMyListing(userId, id) {
+    const d = ensure();
+    d.listings = d.listings.filter((l) => !(l.id === id && l.user_id === userId));
     save();
     emitChange('listings');
   },

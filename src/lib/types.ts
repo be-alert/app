@@ -66,6 +66,8 @@ export interface Profile {
   driver_status?: 'pending' | 'approved' | 'rejected' | null;
   driver_licence_expiry?: string | null;
   driver_verified_until?: string | null;
+  /** Why a licence was rejected or revoked (shown to the driver). */
+  driver_review_notes?: string | null;
 }
 
 /** App-wide settings controlled by the owner. */
@@ -279,6 +281,9 @@ export interface ProviderListing {
   admin_notes: string | null;
   created_at: string;
   updated_at: string;
+  /** Admin view only: who submitted it and whether their CNIC is verified right now. */
+  owner_name?: string;
+  owner_verified?: boolean;
 }
 
 export interface AdminAuditLog {
@@ -313,6 +318,7 @@ export interface AdminOverview {
   totalUsers: number;
   pendingVerifications: number;
   pendingListings: number;
+  pendingDrivers?: number;
   postsByDay: { date: string; count: number }[];
   postsByCategory: { category: string; count: number }[];
 }
