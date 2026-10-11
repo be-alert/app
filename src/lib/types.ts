@@ -62,6 +62,10 @@ export interface Profile {
   banned_reason?: string | null;
   /** App owner — manages admins and app-wide settings. Always also an admin. */
   is_owner?: boolean;
+  /** Driving-licence check, required to offer rides. Set server-side only. */
+  driver_status?: 'pending' | 'approved' | 'rejected' | null;
+  driver_licence_expiry?: string | null;
+  driver_verified_until?: string | null;
 }
 
 /** App-wide settings controlled by the owner. */
@@ -145,6 +149,18 @@ export interface PublicProfile {
   verification_status: VerificationStatus;
   verification_expiry: string | null;
   trust_score: number;
+  /** Licence checked by a moderator and still valid (rides only). */
+  driver_verified?: boolean;
+}
+
+/** A driver's pending licence check (admin view). */
+export interface DriverRequest {
+  user_id: string;
+  display_name: string;
+  licence_number: string;
+  licence_expiry: string;
+  requested_at: string;
+  docs: string[];
 }
 
 export type PostStatus = 'active' | 'resolved' | 'expired' | 'hidden';

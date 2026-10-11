@@ -48,6 +48,9 @@ export function PrivacyPolicy() {
             holding it. They are stored privately and visible only to the app owner and admins for checking, never to other users. The photos are
             deleted as soon as your request is approved or rejected; we keep your CNIC number (to stop one CNIC verifying several accounts) and the
             decision. Photos are resized on your device before upload, which removes hidden location data.</li>
+          <li><strong>Driving licence (only to offer rides):</strong> your licence number, its expiry date, a photo of the licence and a selfie
+            holding it. Handled exactly like CNIC verification: private, seen only by the owner and admins, photos deleted once reviewed. Riders only
+            see a “Verified driver” badge — never your licence details.</li>
           <li><strong>Safety & moderation:</strong> reports you make, and actions taken by admins, are logged to keep the community safe.</li>
           <li><strong>Notifications (optional):</strong> a device token, only if you turn notifications on.</li>
         </ul>

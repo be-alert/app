@@ -107,11 +107,16 @@ function Composer({ editId }: { editId: string | null }) {
     if (settings.disabled_categories.includes(slug)) return 'Turned off by the app owner';
     if (settings.verified_only_categories.includes(slug) && !isVerified)
       return profile?.verification_status === 'pending' ? 'Your CNIC verification is being reviewed' : 'Providers: verify your CNIC to post here';
+    if (slug === 'ride_share' && !isDriver && !isAdmin && !editId)
+      return profile?.driver_status === 'pending' ? 'Your driving licence is being reviewed' : 'Drivers: add your driving licence to offer rides';
     return null;
   };
   /** Provider categories the user can unlock by verifying (unlike ones the owner turned off). */
   const needsVerification = (slug: string) =>
     !isAdmin && !editId && settings.verified_only_categories.includes(slug) && !isVerified && !settings.disabled_categories.includes(slug);
+  // Every ride post offers seats, so only drivers with a checked, valid licence may post one.
+  const isDriver = profile?.driver_status === 'approved' && !!profile.driver_verified_until && new Date(profile.driver_verified_until) > new Date();
+  const needsLicence = (slug: string) => slug === 'ride_share' && !isAdmin && !editId && !isDriver && !settings.disabled_categories.includes(slug);
   const rawPreset = params.get('category');
   const presetCategory = rawPreset && !blockedReason(rawPreset) ? rawPreset : null;
 
@@ -330,9 +335,18 @@ function Composer({ editId }: { editId: string | null }) {
                       return (
                         <button
                           key={c.slug}
-                          disabled={Boolean(blocked) && !needsVerification(c.slug)}
+                          disabled={Boolean(blocked) && !needsVerification(c.slug) && !needsLicence(c.slug)}
                           title={blocked ?? undefined}
                           onClick={() => {
+                            if (needsLicence(c.slug)) {
+                              if (profile?.driver_status === 'pending') {
+                                toast.info('Licence under review', 'You can offer rides as soon as a moderator approves your licence.');
+                              } else {
+                                toast.info('Add your driving licence', 'Only verified drivers can offer rides. It takes 2 minutes.');
+                                navigate('/profile#driver');
+                              }
+                              return;
+                            }
                             if (needsVerification(c.slug)) {
                               if (profile?.verification_status === 'pending') {
                                 toast.info('Verification under review', 'You can post here as soon as a moderator approves your CNIC.');

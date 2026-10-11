@@ -35,6 +35,7 @@ import {
   UserCheck,
   Users,
   XCircle,
+  CarFront,
 } from 'lucide-react';
 import { LogoMark } from '@/components/layout/Logo';
 import { Avatar, Badge, CategoryIcon, ConfirmDialog, EmptyState, Segmented, Sheet, Spinner, Switch, TrustRing, VerifiedBadge, useToast } from '@/components/ui';
@@ -885,6 +886,7 @@ function UserSheet({ user: u, onClose }: { user: AdminUser | null; onClose(): vo
                 <span className="ml-auto text-xs font-medium text-ink-3">owner only</span>
               </button>
             )}
+            <DriverPanel userId={u.id} name={u.display_name} />
             {u.verification_status === 'pending' && (
               <div className="rounded-xl border border-warning-500/30 bg-warning-50 p-3 dark:bg-warning-500/10">
                 <p className="text-[13px] font-semibold text-warning-700 dark:text-warning-500">CNIC submitted — waiting for review</p>
@@ -981,7 +983,7 @@ function UserSheet({ user: u, onClose }: { user: AdminUser | null; onClose(): vo
  * The CNIC photo and selfie of a pending request. They live in a private bucket; these are
  * signed links that stop working after 5 minutes, so they're re-created whenever this mounts.
  */
-function VerificationPhotos({ paths }: { paths: string[] }) {
+function VerificationPhotos({ paths, labels = ['CNIC front', 'Selfie with CNIC'] }: { paths: string[]; labels?: string[] }) {
   const api = useApi();
   const { data: urls, loading } = useQuery(() => api.admin.verificationPhotoUrls(paths), [api, paths.join('|')]);
   if (!paths.length) {
@@ -993,7 +995,7 @@ function VerificationPhotos({ paths }: { paths: string[] }) {
   }
   return (
     <div className="mt-3 grid grid-cols-2 gap-2">
-      {['CNIC front', 'Selfie with CNIC'].map((label, i) => (
+      {labels.map((label, i) => (
         <a
           key={label}
           href={urls?.[i] || undefined}
@@ -1014,6 +1016,45 @@ function VerificationPhotos({ paths }: { paths: string[] }) {
   );
 }
 
+/** Driver status of one user, with review / revoke actions (user panel). */
+function DriverPanel({ userId, name }: { userId: string; name: string }) {
+  const api = useApi();
+  const { user: me } = useAuth();
+  const { busy, run } = useAdminAction();
+  const status = useQuery(() => api.admin.driverStatus(userId), [api, userId], { scopes: ['admin', 'profile'] });
+  const queue = useQuery(() => api.admin.driverQueue(), [api], { scopes: ['admin', 'profile'] });
+  const req = queue.data?.find((r) => r.user_id === userId);
+  const s = status.data;
+  const active = s?.status === 'approved' && !!s.until && new Date(s.until) > new Date();
+  if (req) {
+    return (
+      <div className="rounded-xl border border-sky-500/30 bg-sky-500/5 p-3">
+        <p className="flex items-center gap-1.5 text-[13px] font-semibold text-sky-700 dark:text-sky-300">
+          <CarFront className="h-4 w-4" /> Driving licence submitted — {req.licence_number}, valid until {formatDate(req.licence_expiry)}
+        </p>
+        <VerificationPhotos paths={req.docs} labels={['Licence front', 'Selfie with licence']} />
+        <div className="mt-2.5 grid grid-cols-2 gap-2">
+          <button className="btn-primary btn-sm" disabled={busy || new Date(req.licence_expiry) <= new Date()} onClick={() => run(`${name} can now offer rides`, () => api.admin.reviewDriver(me!.id, userId, 'approved', ''))}>
+            <BadgeCheck className="h-4 w-4" /> Approve driver
+          </button>
+          <button className="btn-outline btn-sm text-danger-600" disabled={busy} onClick={() => run('Licence rejected', () => api.admin.reviewDriver(me!.id, userId, 'rejected', 'Rejected from the user panel'))}>
+            <XCircle className="h-4 w-4" /> Reject
+          </button>
+        </div>
+      </div>
+    );
+  }
+  if (active) {
+    return (
+      <button className="btn-outline w-full justify-start" disabled={busy} onClick={() => run('Driver status revoked', () => api.admin.reviewDriver(me!.id, userId, 'revoked', 'Revoked by admin'))}>
+        <CarFront className="h-4 w-4 text-warning-600" /> Revoke driver status
+        <span className="ml-auto text-xs font-medium text-ink-3">verified until {formatDate(s!.until!)}</span>
+      </button>
+    );
+  }
+  return null;
+}
+
 function PendingPhotos({ userId }: { userId: string }) {
   const api = useApi();
   const { data } = useQuery(() => api.admin.verificationQueue(), [api], { scopes: ['admin', 'profile'] });
@@ -1032,9 +1073,17 @@ function Verification() {
   const { busy, run } = useAdminAction();
 
   if (loading) return <Spinner className="mx-auto mt-12 h-6 w-6" />;
-  if (!data?.length) return <EmptyState icon={BadgeCheck} title="Verification queue is empty" body="New CNIC submissions will appear here." />;
 
   return (
+    <div className="space-y-8">
+      <DriverQueue />
+      <section>
+        <h2 className="mb-3 flex items-center gap-2 text-sm font-bold text-ink">
+          <BadgeCheck className="h-4 w-4 text-primary-600" /> CNIC — providers
+        </h2>
+        {!data?.length ? (
+          <EmptyState icon={BadgeCheck} title="No CNIC requests" body="Providers’ CNIC submissions will appear here." />
+        ) : (
     <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
       {data.map((r) => {
         const show = revealed.has(r.user_id);
@@ -1110,6 +1159,66 @@ function Verification() {
         );
       })}
     </div>
+        )}
+      </section>
+    </div>
+  );
+}
+
+/** Pending driving-licence checks (required to offer rides). */
+function DriverQueue() {
+  const api = useApi();
+  const { user } = useAuth();
+  const { data } = useQuery(() => api.admin.driverQueue(), [api], { scopes: ['admin', 'profile'] });
+  const [notes, setNotes] = useState<Record<string, string>>({});
+  const { busy, run } = useAdminAction();
+  return (
+    <section>
+      <h2 className="mb-3 flex items-center gap-2 text-sm font-bold text-ink">
+        <CarFront className="h-4 w-4 text-sky-600" /> Driving licences — ride givers
+      </h2>
+      {!data?.length ? (
+        <EmptyState icon={CarFront} title="No licence requests" body="Drivers who want to offer rides appear here." />
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {data.map((r) => {
+            const expired = new Date(r.licence_expiry) <= new Date();
+            return (
+              <article key={r.user_id} className="card flex flex-col p-5">
+                <div className="flex items-center gap-3">
+                  <Avatar name={r.display_name} size={44} />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-bold text-ink">{r.display_name}</p>
+                    <p className="text-xs text-ink-3">Requested {timeAgo(r.requested_at)}</p>
+                  </div>
+                </div>
+                <dl className="mt-4 space-y-2 rounded-xl bg-surface-2 p-3.5 text-sm">
+                  <div className="flex justify-between gap-3">
+                    <dt className="text-ink-3">Licence no.</dt>
+                    <dd className="font-mono font-semibold text-ink">{r.licence_number}</dd>
+                  </div>
+                  <div className="flex justify-between gap-3">
+                    <dt className="text-ink-3">Valid until</dt>
+                    <dd className={cn('font-semibold', expired ? 'text-danger-600' : 'text-ink')}>{formatDate(r.licence_expiry)}</dd>
+                  </div>
+                </dl>
+                <VerificationPhotos paths={r.docs} labels={['Licence front', 'Selfie with licence']} />
+                <p className="mt-2 text-xs text-ink-3">Check the name, photo and expiry on the licence match the selfie and the details above.</p>
+                <input className="input mt-3 h-10" placeholder="Notes (optional)" value={notes[r.user_id] ?? ''} onChange={(e) => setNotes({ ...notes, [r.user_id]: e.target.value })} />
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  <button className="btn-secondary text-danger-600" disabled={busy} onClick={() => run('Licence rejected', () => api.admin.reviewDriver(user!.id, r.user_id, 'rejected', notes[r.user_id] ?? ''))}>
+                    <XCircle className="h-4 w-4" /> Reject
+                  </button>
+                  <button className="btn-primary" disabled={busy || expired} onClick={() => run(`${r.display_name} can now offer rides`, () => api.admin.reviewDriver(user!.id, r.user_id, 'approved', notes[r.user_id] ?? ''))}>
+                    <BadgeCheck className="h-4 w-4" /> Approve
+                  </button>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      )}
+    </section>
   );
 }
 

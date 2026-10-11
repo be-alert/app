@@ -23,6 +23,7 @@ import type {
   ProviderListing,
   TrustedContact,
   VerificationRequest,
+  DriverRequest,
 } from '@/lib/types';
 
 export type BackendMode = 'demo' | 'live';
@@ -68,6 +69,8 @@ export interface AuthApi {
   updateProfile(userId: string, patch: ProfilePatch): Promise<void>;
   /** CNIC verification: the number plus two photos (CNIC front, selfie holding it), kept private. */
   submitVerification(userId: string, cnic: string, isBusiness: boolean, photos: VerificationPhotos): Promise<void>;
+  /** Driving-licence check to offer rides: licence number, expiry (YYYY-MM-DD), licence photo + selfie. */
+  submitDriverVerification(userId: string, licence: string, expiry: string, photos: VerificationPhotos): Promise<void>;
 }
 
 export interface ListingInput {
@@ -89,6 +92,10 @@ export interface AdminApi {
   verificationQueue(): Promise<VerificationRequest[]>;
   /** Short-lived links to a request's private photos (admins only). */
   verificationPhotoUrls(paths: string[]): Promise<string[]>;
+  driverQueue(): Promise<DriverRequest[]>;
+  /** Driver status of one user (for the user panel). */
+  driverStatus(userId: string): Promise<{ status: Profile['driver_status']; until: string | null }>;
+  reviewDriver(adminId: string, userId: string, decision: 'approved' | 'rejected' | 'revoked', notes: string): Promise<void>;
   reviewVerification(adminId: string, userId: string, decision: 'approved' | 'rejected', notes: string, expiry: string | null): Promise<void>;
   listListings(status?: ProviderListing['status']): Promise<ProviderListing[]>;
   reviewListing(adminId: string, id: string, decision: 'approved' | 'rejected', notes: string): Promise<void>;

@@ -24,15 +24,35 @@ import type {
   Profile,
   PublicProfile,
   VerificationRequest,
+  DriverRequest,
 } from '@/lib/types';
 
 const PROFILE_COLUMNS =
   'id, phone, display_name, avatar_url, is_business, is_admin, verification_status, verification_date, ' +
   'verification_expiry, verification_history, trust_score, radius_km, saved_locations, watched_areas, ' +
   'pinned_categories, muted_categories, digest_categories, digest_enabled, digest_time, blocked_users, theme, created_at, ' +
-  'is_banned, banned_reason, is_owner';
+  'is_banned, banned_reason, is_owner, driver_status, driver_licence_expiry, driver_verified_until';
 
 const sb = () => requireSupabase();
+
+/**
+ * Uploads an ID photo + selfie to the private verification bucket, in the user's own folder
+ * (enforced by storage policies); the database checks the files exist before accepting.
+ */
+async function uploadIdPhotos(userId: string, kind: 'cnic' | 'licence', photos: { front: Blob; selfie: Blob }): Promise<string[]> {
+  const bucket = sb().storage.from(DOCS_BUCKET);
+  const stamp = Date.now();
+  const paths = [`${userId}/${stamp}-${kind}-front.jpg`, `${userId}/${stamp}-${kind}-selfie.jpg`];
+  const blobs = [photos.front, photos.selfie];
+  for (let i = 0; i < paths.length; i++) {
+    const { error } = await bucket.upload(paths[i], blobs[i], { contentType: 'image/jpeg', upsert: false });
+    if (error) {
+      await bucket.remove(paths.slice(0, i));
+      throw new Error('Could not upload your photos. Please try again.');
+    }
+  }
+  return paths;
+}
 
 function fail(error: { message: string } | null): void {
   if (error) throw new Error(error.message);
@@ -255,21 +275,16 @@ const auth: AuthApi = {
     emitChange('profile');
   },
   async submitVerification(userId, cnic, isBusiness, photos) {
-    // Private bucket, own folder only (enforced by storage policies); the database then checks
-    // the files exist before accepting the request.
-    const bucket = sb().storage.from(DOCS_BUCKET);
-    const stamp = Date.now();
-    const paths = [`${userId}/${stamp}-cnic-front.jpg`, `${userId}/${stamp}-selfie.jpg`];
-    const blobs = [photos.front, photos.selfie];
-    for (let i = 0; i < paths.length; i++) {
-      const { error } = await bucket.upload(paths[i], blobs[i], { contentType: 'image/jpeg', upsert: false });
-      if (error) {
-        await bucket.remove(paths.slice(0, i));
-        throw new Error('Could not upload your photos. Please try again.');
-      }
-    }
+    const paths = await uploadIdPhotos(userId, 'cnic', photos);
     const { error } = await sb().rpc('submit_verification', { p_cnic: cnic.replace(/\D/g, ''), p_is_business: isBusiness, p_docs: paths });
-    if (error) await bucket.remove(paths); // nothing to review: don't keep ID photos around
+    if (error) await sb().storage.from(DOCS_BUCKET).remove(paths); // nothing to review: don't keep ID photos around
+    fail(error);
+    emitChange('profile');
+  },
+  async submitDriverVerification(userId, licence, expiry, photos) {
+    const paths = await uploadIdPhotos(userId, 'licence', photos);
+    const { error } = await sb().rpc('submit_driver_verification', { p_licence: licence, p_expiry: expiry, p_docs: paths });
+    if (error) await sb().storage.from(DOCS_BUCKET).remove(paths);
     fail(error);
     emitChange('profile');
   },
@@ -324,6 +339,23 @@ const admin: AdminApi = {
     const { data, error } = await sb().rpc('admin_verification_queue');
     fail(error);
     return (data ?? []) as VerificationRequest[];
+  },
+  async driverQueue() {
+    const { data, error } = await sb().rpc('admin_driver_queue');
+    fail(error);
+    return (data ?? []) as DriverRequest[];
+  },
+  async driverStatus(userId) {
+    const { data, error } = await sb().from('profiles').select('driver_status, driver_verified_until').eq('id', userId).maybeSingle();
+    fail(error);
+    const d = data as { driver_status: Profile['driver_status']; driver_verified_until: string | null } | null;
+    return { status: d?.driver_status ?? null, until: d?.driver_verified_until ?? null };
+  },
+  async reviewDriver(_adminId, userId, decision, notes) {
+    const { data: photos, error } = await sb().rpc('admin_review_driver', { p_user_id: userId, p_decision: decision, p_notes: notes });
+    fail(error);
+    if (Array.isArray(photos) && photos.length) await sb().storage.from(DOCS_BUCKET).remove(photos as string[]);
+    emitChange('admin');
   },
   async verificationPhotoUrls(paths) {
     if (!paths.length) return [];

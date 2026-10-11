@@ -6,6 +6,7 @@ import {
   Bookmark,
   Briefcase,
   Camera,
+  CarFront,
   Download,
   Eye,
   Lock,
@@ -52,6 +53,7 @@ const NOTIFICATIONS_LIVE = false;
 const SECTIONS = [
   { id: 'account', label: 'Account', icon: UserRound },
   { id: 'verification', label: 'Verification', icon: ShieldCheck },
+  { id: 'driver', label: 'Driving licence', icon: CarFront },
   { id: 'radar', label: 'Radar & places', icon: Radar },
   { id: 'feed', label: 'Feed preferences', icon: Pin },
   ...(NOTIFICATIONS_LIVE ? [{ id: 'notifications', label: 'Notifications', icon: Bell }] : []),
@@ -100,6 +102,7 @@ function ProfileContent() {
       <div className="min-w-0 space-y-5">
         <AccountCard profile={profile} />
         <VerificationSection profile={profile} />
+        <DriverSection profile={profile} />
         <RadarSection profile={profile} />
         <FeedSection profile={profile} />
         {NOTIFICATIONS_LIVE && <NotificationSection profile={profile} />}
@@ -361,6 +364,93 @@ function VerificationSection({ profile }: { profile: ProfileT }) {
         )}
       </div>
       <ListingSheet open={listingOpen} onClose={() => setListingOpen(false)} userId={profile.id} />
+    </Section>
+  );
+}
+
+// ── Driving licence (required to offer rides) ──────────────────────────────
+
+function DriverSection({ profile }: { profile: ProfileT }) {
+  const api = useApi();
+  const toast = useToast();
+  const [licence, setLicence] = useState('');
+  const [expiry, setExpiry] = useState('');
+  const [front, setFront] = useState<Blob | null>(null);
+  const [selfie, setSelfie] = useState<Blob | null>(null);
+  const [busy, setBusy] = useState(false);
+  const status = profile.driver_status;
+  const until = profile.driver_verified_until ? new Date(profile.driver_verified_until) : null;
+  const active = status === 'approved' && until !== null && until > new Date();
+  const today = new Date().toISOString().slice(0, 10);
+  const licenceOk = licence.replace(/[^A-Za-z0-9]/g, '').length >= 5;
+  const ready = licenceOk && expiry > today && front && selfie;
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!ready) return;
+    setBusy(true);
+    try {
+      await api.auth.submitDriverVerification(profile.id, licence.trim(), expiry, { front: front!, selfie: selfie! });
+      toast.success('Licence submitted', 'A moderator will check it, usually within 24 hours.');
+      setLicence('');
+      setExpiry('');
+      setFront(null);
+      setSelfie(null);
+    } catch (err) {
+      toast.error('Could not submit', (err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Section id="driver" icon={CarFront} title="Driving licence" description="Required only to offer rides in Carpool & Rideshare. Riders see a “Verified driver” badge on your rides.">
+      {active ? (
+        <div className="flex items-center gap-3 rounded-2xl bg-primary-600/5 p-4 ring-1 ring-primary-500/20">
+          <CarFront className="h-8 w-8 text-primary-600" />
+          <div>
+            <p className="font-bold text-ink">You’re a verified driver</p>
+            <p className="text-[13px] text-ink-2">Valid until {formatDate(until!.toISOString())} — renew before your licence expires.</p>
+          </div>
+        </div>
+      ) : status === 'pending' ? (
+        <div className="rounded-2xl bg-warning-50 p-4 text-[13px] text-warning-700 dark:bg-warning-500/10 dark:text-warning-500">
+          <b>Under review.</b> A moderator is checking your licence. You can offer rides as soon as it’s approved — your photos are deleted right after.
+        </div>
+      ) : (
+        <form onSubmit={submit} className="space-y-3">
+          {status === 'rejected' && (
+            <p className="rounded-xl bg-danger-50 px-3.5 py-2.5 text-[13px] text-danger-700 dark:bg-danger-500/10 dark:text-danger-400">
+              Your licence wasn’t approved (or has expired). Make sure the details match the card and both photos are clear, then try again.
+            </p>
+          )}
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <label className="label" htmlFor="licence">Licence number</label>
+              <input id="licence" className="input uppercase tracking-wider" placeholder="As printed on your licence" value={licence} onChange={(e) => setLicence(e.target.value.slice(0, 30))} />
+            </div>
+            <div>
+              <label className="label" htmlFor="licence-expiry">Valid until</label>
+              <input id="licence-expiry" type="date" className="input" min={today} value={expiry} onChange={(e) => setExpiry(e.target.value)} />
+              {expiry && expiry <= today && <p className="mt-1.5 text-xs font-medium text-danger-600">This licence has expired.</p>}
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <PhotoPick label="Driving licence (front)" hint="Name, photo and dates readable" value={front} onChange={setFront} />
+            <PhotoPick label="Selfie holding your licence" hint="Your face and the card visible" value={selfie} onChange={setSelfie} />
+          </div>
+          <p className="flex items-start gap-2 rounded-xl bg-surface-2 px-3.5 py-2.5 text-xs leading-relaxed text-ink-2">
+            <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ink-3" />
+            <span>
+              Private: only Be Alert moderators see your licence and photos. The photos are <b>deleted as soon as it’s reviewed</b>; your badge ends
+              when the licence expires (at most 1 year), then you renew it here.
+            </span>
+          </p>
+          <button className="btn-primary w-full sm:w-auto" disabled={busy || !ready}>
+            {busy ? 'Uploading securely…' : 'Submit licence'}
+          </button>
+        </form>
+      )}
     </Section>
   );
 }

@@ -27,6 +27,7 @@ import {
   UserRound,
   Users,
   X,
+  CarFront,
 } from 'lucide-react';
 import { PageHeader } from '@/components/layout/Page';
 import { usePostActions } from '@/components/post/usePostActions';
@@ -638,6 +639,11 @@ function AuthorCard({ post }: { post: PostWithRelations }) {
             {name} <VerifiedBadge profile={a} size={16} />
           </p>
           <p className="text-xs text-ink-3">{a?.is_business ? 'Business / service provider' : 'Neighbour'}</p>
+          {post.category === 'ride_share' && (
+            <p className={cn('mt-1 inline-flex items-center gap-1 text-xs font-semibold', a?.driver_verified ? 'text-sky-700 dark:text-sky-300' : 'text-ink-3')}>
+              <CarFront className="h-3.5 w-3.5" /> {a?.driver_verified ? 'Verified driver · licence checked' : 'Driving licence not checked'}
+            </p>
+          )}
         </div>
         {a && <TrustRing score={a.trust_score} size={48} />}
       </div>

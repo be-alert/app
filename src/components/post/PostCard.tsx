@@ -13,6 +13,7 @@ import {
   Sparkles,
   UserRound,
   Users,
+  CarFront,
 } from 'lucide-react';
 import { Avatar, CategoryBadge, SmartImage, VerifiedBadge } from '@/components/ui';
 import { usePostActions } from './usePostActions';
@@ -66,6 +67,11 @@ function PostCardImpl({ post, onChange, compact }: Props) {
             <div className="flex items-center gap-1">
               <span className="truncate text-[14px] font-semibold text-ink">{authorName}</span>
               <VerifiedBadge profile={post.author} size={15} />
+              {post.category === 'ride_share' && post.author?.driver_verified && (
+                <span className="ml-1 inline-flex shrink-0 items-center gap-1 rounded-full bg-sky-500/10 px-1.5 py-0.5 text-[10px] font-bold text-sky-700 dark:text-sky-300">
+                  <CarFront className="h-3 w-3" /> Verified driver
+                </span>
+              )}
             </div>
             <div className="flex items-center gap-1.5 text-xs text-ink-3">
               <span>{timeAgo(post.created_at)}</span>

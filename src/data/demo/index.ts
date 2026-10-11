@@ -271,7 +271,8 @@ function setSession(u: SessionUser | null) {
 }
 
 const pendingOtp = new Map<string, number>();
-const demoPhotos = new Map<string, string[]>(); // demo CNIC photos, in memory only
+const demoPhotos = new Map<string, string[]>(); // demo CNIC/licence photos, in memory only
+const demoDrivers = new Map<string, { licence: string; expiry: string; requested_at: string }>();
 // Demo-only password accounts (kept in memory; demo data never leaves this browser).
 const demoPasswords = new Map<string, string>();
 const pendingSignup = new Map<string, string>();
@@ -418,6 +419,18 @@ const auth: AuthApi = {
     save();
     emitChange('profile');
   },
+  async submitDriverVerification(userId, licence, expiry, photos) {
+    const d = ensure();
+    const p = d.profiles[userId];
+    if (!p) throw new Error('Please sign in again.');
+    if (new Date(expiry) <= new Date()) throw new Error('Your driving licence has expired — renew it first');
+    demoPhotos.set(`driver:${userId}`, await Promise.all([blobToDataUrl(photos.front), blobToDataUrl(photos.selfie)]));
+    demoDrivers.set(userId, { licence: licence.replace(/[^A-Za-z0-9]/g, '').toUpperCase(), expiry, requested_at: new Date().toISOString() });
+    p.driver_status = 'pending';
+    p.driver_licence_expiry = expiry;
+    save();
+    emitChange('profile');
+  },
   async submitVerification(userId, cnic, isBusiness, photos) {
     const d = ensure();
     const u = need(d.users.find((x) => x.id === userId));
@@ -512,6 +525,30 @@ const admin: AdminApi = {
         docs: demoPhotos.has(u.id) ? [`${u.id}/front`, `${u.id}/selfie`] : [],
       }))
       .sort((a, b) => +new Date(a.requested_at) - +new Date(b.requested_at));
+  },
+  async driverQueue() {
+    const d = ensure();
+    return Object.values(d.profiles)
+      .filter((p) => p.driver_status === 'pending' && demoDrivers.has(p.id))
+      .map((p) => {
+        const r = demoDrivers.get(p.id)!;
+        return { user_id: p.id, display_name: p.display_name || 'Unnamed user', licence_number: r.licence, licence_expiry: r.expiry, requested_at: r.requested_at, docs: [`driver:${p.id}/front`, `driver:${p.id}/selfie`] };
+      });
+  },
+  async driverStatus(userId) {
+    const p = ensure().profiles[userId];
+    return { status: p?.driver_status ?? null, until: p?.driver_verified_until ?? null };
+  },
+  async reviewDriver(_adminId, userId, decision) {
+    const d = ensure();
+    const p = need(d.profiles[userId]);
+    const r = demoDrivers.get(userId);
+    const until = r ? Math.min(new Date(r.expiry).getTime() + 86_400_000, Date.now() + 365 * 86_400_000) : Date.now();
+    p.driver_status = decision === 'approved' ? 'approved' : 'rejected';
+    p.driver_verified_until = decision === 'approved' ? new Date(until).toISOString() : null;
+    demoPhotos.delete(`driver:${userId}`);
+    save();
+    emitChange('admin');
   },
   async verificationPhotoUrls(paths) {
     return paths.map((p) => {
