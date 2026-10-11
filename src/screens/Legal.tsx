@@ -44,8 +44,10 @@ export function PrivacyPolicy() {
           <li><strong>Location:</strong> with your permission, your device location is used to show posts within the radius you pick (1–50 km) and to place
             posts you create on the map. You can instead choose a city manually. We do not track your location in the background.</li>
           <li><strong>Content you post:</strong> posts, photos, comments, votes, RSVPs, bookmarks and business listings.</li>
-          <li><strong>Verification (optional):</strong> if you request a verified badge, your CNIC number. It is visible only to the app owner and admins for
-            checking, never to other users.</li>
+          <li><strong>Verification (optional):</strong> if you request a verified badge, your CNIC number, a photo of your CNIC (front) and a selfie
+            holding it. They are stored privately and visible only to the app owner and admins for checking, never to other users. The photos are
+            deleted as soon as your request is approved or rejected; we keep your CNIC number (to stop one CNIC verifying several accounts) and the
+            decision. Photos are resized on your device before upload, which removes hidden location data.</li>
           <li><strong>Safety & moderation:</strong> reports you make, and actions taken by admins, are logged to keep the community safe.</li>
           <li><strong>Notifications (optional):</strong> a device token, only if you turn notifications on.</li>
         </ul>
@@ -92,7 +94,8 @@ export function PrivacyPolicy() {
       <section>
         <h2>Data retention</h2>
         <p>
-          We keep your data while your account exists. When you delete your account, your personal data and content are deleted. Records of admin
+          We keep your data while your account exists, except verification photos, which are deleted once reviewed. When you delete your account,
+          your personal data and content (including any verification photos still waiting for review) are deleted. Records of admin
           moderation actions are kept without your personal details.
         </p>
       </section>

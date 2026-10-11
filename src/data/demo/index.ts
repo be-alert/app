@@ -271,6 +271,7 @@ function setSession(u: SessionUser | null) {
 }
 
 const pendingOtp = new Map<string, number>();
+const demoPhotos = new Map<string, string[]>(); // demo CNIC photos, in memory only
 // Demo-only password accounts (kept in memory; demo data never leaves this browser).
 const demoPasswords = new Map<string, string>();
 const pendingSignup = new Map<string, string>();
@@ -417,9 +418,11 @@ const auth: AuthApi = {
     save();
     emitChange('profile');
   },
-  async submitVerification(userId, cnic, isBusiness) {
+  async submitVerification(userId, cnic, isBusiness, photos) {
     const d = ensure();
     const u = need(d.users.find((x) => x.id === userId));
+    // Demo only: photos stay in this browser's memory (never stored or sent anywhere).
+    demoPhotos.set(userId, await Promise.all([blobToDataUrl(photos.front), blobToDataUrl(photos.selfie)]));
     u.cnic_number = cnic.replace(/\D/g, '');
     u.verification_status = 'pending';
     u.is_business = isBusiness;
@@ -506,10 +509,19 @@ const admin: AdminApi = {
         is_business: u.is_business,
         trust_score: u.trust_score,
         requested_at: u.requested_at ?? u.created_at,
+        docs: demoPhotos.has(u.id) ? [`${u.id}/front`, `${u.id}/selfie`] : [],
       }))
       .sort((a, b) => +new Date(a.requested_at) - +new Date(b.requested_at));
   },
+  async verificationPhotoUrls(paths) {
+    return paths.map((p) => {
+      const [id, kind] = p.split('/');
+      const urls = demoPhotos.get(id);
+      return urls ? urls[kind === 'front' ? 0 : 1] : '';
+    });
+  },
   async reviewVerification(adminId, userId, decision, notes, expiry) {
+    demoPhotos.delete(userId);
     const d = ensure();
     const u = need(d.users.find((x) => x.id === userId));
     u.verification_status = decision;

@@ -888,7 +888,8 @@ function UserSheet({ user: u, onClose }: { user: AdminUser | null; onClose(): vo
             {u.verification_status === 'pending' && (
               <div className="rounded-xl border border-warning-500/30 bg-warning-50 p-3 dark:bg-warning-500/10">
                 <p className="text-[13px] font-semibold text-warning-700 dark:text-warning-500">CNIC submitted — waiting for review</p>
-                <p className="mt-0.5 text-xs text-ink-2">Check the CNIC in the Verification tab, or decide here. Approval lasts 1 year.</p>
+                <p className="mt-0.5 text-xs text-ink-2">Compare the photos with the CNIC before approving. Approval lasts 1 year; the photos are deleted either way.</p>
+                <PendingPhotos userId={u.id} />
                 <div className="mt-2.5 grid grid-cols-2 gap-2">
                   <button
                     className="btn-primary btn-sm"
@@ -976,6 +977,50 @@ function UserSheet({ user: u, onClose }: { user: AdminUser | null; onClose(): vo
 
 // ── Verification ────────────────────────────────────────────────────────────
 
+/**
+ * The CNIC photo and selfie of a pending request. They live in a private bucket; these are
+ * signed links that stop working after 5 minutes, so they're re-created whenever this mounts.
+ */
+function VerificationPhotos({ paths }: { paths: string[] }) {
+  const api = useApi();
+  const { data: urls, loading } = useQuery(() => api.admin.verificationPhotoUrls(paths), [api, paths.join('|')]);
+  if (!paths.length) {
+    return (
+      <p className="mt-3 rounded-xl bg-warning-50 px-3 py-2 text-xs text-warning-700 dark:bg-warning-500/10 dark:text-warning-500">
+        No photos — sent before photo checks existed. Reject it so they can re-submit with photos.
+      </p>
+    );
+  }
+  return (
+    <div className="mt-3 grid grid-cols-2 gap-2">
+      {['CNIC front', 'Selfie with CNIC'].map((label, i) => (
+        <a
+          key={label}
+          href={urls?.[i] || undefined}
+          target="_blank"
+          rel="noreferrer"
+          className="group relative block aspect-[4/3] overflow-hidden rounded-xl bg-surface-2"
+          aria-label={`Open ${label} full size`}
+        >
+          {urls?.[i] ? (
+            <img src={urls[i]} alt={label} className="h-full w-full object-cover transition group-hover:scale-105" referrerPolicy="no-referrer" />
+          ) : (
+            <span className="flex h-full items-center justify-center text-xs text-ink-3">{loading ? 'Loading…' : 'Unavailable'}</span>
+          )}
+          <span className="absolute inset-x-0 bottom-0 bg-black/55 px-2 py-1 text-[11px] font-semibold text-white">{label}</span>
+        </a>
+      ))}
+    </div>
+  );
+}
+
+function PendingPhotos({ userId }: { userId: string }) {
+  const api = useApi();
+  const { data } = useQuery(() => api.admin.verificationQueue(), [api], { scopes: ['admin', 'profile'] });
+  const req = data?.find((r) => r.user_id === userId);
+  return req ? <VerificationPhotos paths={req.docs ?? []} /> : null;
+}
+
 function Verification() {
   const api = useApi();
   const { user } = useAuth();
@@ -1033,6 +1078,7 @@ function Verification() {
                 <dd className="font-semibold text-ink">{r.trust_score}</dd>
               </div>
             </dl>
+            <VerificationPhotos paths={r.docs ?? []} />
             <div className="mt-3 grid grid-cols-2 gap-2">
               <div className="col-span-2">
                 <label className="label">Valid until</label>

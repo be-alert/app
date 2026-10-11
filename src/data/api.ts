@@ -38,6 +38,11 @@ export interface SessionUser {
 /** Which email a 6-digit code came from: code sign-in, new-account confirmation, or password reset. */
 export type EmailCodeKind = 'email' | 'signup' | 'recovery';
 
+export interface VerificationPhotos {
+  front: Blob;
+  selfie: Blob;
+}
+
 export interface AuthApi {
   getSession(): Promise<SessionUser | null>;
   onChange(cb: (user: SessionUser | null) => void): () => void;
@@ -61,7 +66,8 @@ export interface AuthApi {
   deleteMyAccount(): Promise<{ error: string | null }>;
   getProfile(userId: string): Promise<Profile | null>;
   updateProfile(userId: string, patch: ProfilePatch): Promise<void>;
-  submitVerification(userId: string, cnic: string, isBusiness: boolean): Promise<void>;
+  /** CNIC verification: the number plus two photos (CNIC front, selfie holding it), kept private. */
+  submitVerification(userId: string, cnic: string, isBusiness: boolean, photos: VerificationPhotos): Promise<void>;
 }
 
 export interface ListingInput {
@@ -81,6 +87,8 @@ export interface AdminApi {
   listPosts(filter: 'reported' | 'hidden' | 'all', search?: string): Promise<PostWithRelations[]>;
   moderatePost(adminId: string, postId: string, action: ModerationAction, reason?: string): Promise<void>;
   verificationQueue(): Promise<VerificationRequest[]>;
+  /** Short-lived links to a request's private photos (admins only). */
+  verificationPhotoUrls(paths: string[]): Promise<string[]>;
   reviewVerification(adminId: string, userId: string, decision: 'approved' | 'rejected', notes: string, expiry: string | null): Promise<void>;
   listListings(status?: ProviderListing['status']): Promise<ProviderListing[]>;
   reviewListing(adminId: string, id: string, decision: 'approved' | 'rejected', notes: string): Promise<void>;

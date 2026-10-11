@@ -284,6 +284,8 @@ export interface VerificationRequest {
   is_business: boolean;
   trust_score: number;
   requested_at: string;
+  /** Private storage paths of the CNIC photo and selfie (removed once reviewed). */
+  docs?: string[];
 }
 
 export interface AdminOverview {

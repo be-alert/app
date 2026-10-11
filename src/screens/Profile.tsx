@@ -8,6 +8,7 @@ import {
   Camera,
   Download,
   Eye,
+  Lock,
   LogOut,
   MapPin,
   Moon,
@@ -37,6 +38,7 @@ import { useDebounced, useQuery } from '@/lib/hooks';
 import { CATEGORIES, getCategory } from '@/lib/categories';
 import { cn, formatCnic, formatDate, maskPhone, toE164PK, uid } from '@/lib/format';
 import { searchPlaces, type PlaceResult } from '@/services/maps';
+import { compressImage } from '@/data/images';
 import { isFirebaseConfigured, requestNotificationPermission } from '@/services/firebase';
 import type { Profile as ProfileT, WatchedArea } from '@/lib/types';
 
@@ -233,6 +235,8 @@ function VerificationSection({ profile }: { profile: ProfileT }) {
   const api = useApi();
   const toast = useToast();
   const [cnic, setCnic] = useState('');
+  const [front, setFront] = useState<Blob | null>(null);
+  const [selfie, setSelfie] = useState<Blob | null>(null);
   const [business, setBusiness] = useState(profile.is_business);
   const [busy, setBusy] = useState(false);
   const [listingOpen, setListingOpen] = useState(false);
@@ -240,14 +244,20 @@ function VerificationSection({ profile }: { profile: ProfileT }) {
   const v = verificationState(profile);
   const status = profile.verification_status;
 
+  const cnicDigits = cnic.replace(/\D/g, '');
+  const cnicValid = /^[1-7]\d{12}$/.test(cnicDigits);
+  const ready = cnicValid && front && selfie;
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (cnic.replace(/\D/g, '').length !== 13) return;
+    if (!ready) return;
     setBusy(true);
     try {
-      await api.auth.submitVerification(profile.id, cnic, business);
-      toast.success('Verification submitted', 'A moderator will review your CNIC, usually within 24 hours.');
+      await api.auth.submitVerification(profile.id, cnic, business, { front: front!, selfie: selfie! });
+      toast.success('Verification submitted', 'A moderator will check your photos, usually within 24 hours.');
       setCnic('');
+      setFront(null);
+      setSelfie(null);
     } catch (err) {
       toast.error('Could not submit', (err as Error).message);
     } finally {
@@ -270,21 +280,33 @@ function VerificationSection({ profile }: { profile: ProfileT }) {
         </div>
       ) : status === 'pending' ? (
         <div className="rounded-2xl bg-warning-50 p-4 text-[13px] text-warning-700 dark:bg-warning-500/10 dark:text-warning-500">
-          <b>Under review.</b> A moderator is checking your CNIC. You’ll get your badge as soon as it’s approved.
+          <b>Under review.</b> A moderator is checking your CNIC and photos. You’ll get your badge as soon as it’s approved — and your photos are
+          deleted right after the review.
         </div>
       ) : (
         <form onSubmit={submit} className="space-y-3">
           {status === 'rejected' && (
             <p className="rounded-xl bg-danger-50 px-3.5 py-2.5 text-[13px] text-danger-700 dark:bg-danger-500/10 dark:text-danger-400">
-              Your last request wasn’t approved. Please check your CNIC number and try again.
+              Your last request wasn’t approved. Make sure the CNIC number matches the card and both photos are clear, then try again.
             </p>
           )}
           {v === 'expired' && <p className="rounded-xl bg-surface-2 px-3.5 py-2.5 text-[13px] text-ink-2">Your verification has expired — please re-submit.</p>}
           <div>
             <label className="label" htmlFor="cnic">CNIC number</label>
             <input id="cnic" className="input tracking-wider" inputMode="numeric" placeholder="42101-1234567-1" value={cnic} onChange={(e) => setCnic(formatCnic(e.target.value))} />
-            <p className="mt-1.5 text-xs text-ink-3">Stored securely and visible only to Be Alert moderators — never shown publicly.</p>
+            {cnicDigits.length === 13 && !cnicValid && <p className="mt-1.5 text-xs font-medium text-danger-600">This doesn’t look like a valid CNIC number.</p>}
           </div>
+          <div className="grid grid-cols-2 gap-3">
+            <PhotoPick label="CNIC front" hint="All text readable, no glare" value={front} onChange={setFront} />
+            <PhotoPick label="Selfie holding your CNIC" hint="Your face and the card visible" value={selfie} onChange={setSelfie} />
+          </div>
+          <p className="flex items-start gap-2 rounded-xl bg-surface-2 px-3.5 py-2.5 text-xs leading-relaxed text-ink-2">
+            <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ink-3" />
+            <span>
+              Private: only Be Alert moderators can see your CNIC and photos — never other users. The photos are <b>deleted as soon as your
+              request is reviewed</b>. Your CNIC number stays private on file so it can’t be used to verify another account.
+            </span>
+          </p>
           <label className="flex items-center justify-between gap-3 rounded-xl border border-line px-3.5 py-3">
             <span>
               <span className="block text-sm font-semibold text-ink">I’m a business / service provider</span>
@@ -292,8 +314,8 @@ function VerificationSection({ profile }: { profile: ProfileT }) {
             </span>
             <Switch label="Business account" checked={business} onChange={setBusiness} />
           </label>
-          <button className="btn-primary w-full sm:w-auto" disabled={busy || cnic.replace(/\D/g, '').length !== 13}>
-            {busy ? 'Submitting…' : 'Submit for verification'}
+          <button className="btn-primary w-full sm:w-auto" disabled={busy || !ready}>
+            {busy ? 'Uploading securely…' : 'Submit for verification'}
           </button>
         </form>
       )}
@@ -327,6 +349,62 @@ function VerificationSection({ profile }: { profile: ProfileT }) {
       </div>
       <ListingSheet open={listingOpen} onClose={() => setListingOpen(false)} userId={profile.id} />
     </Section>
+  );
+}
+
+/** Pick (or take) a photo; it's resized and re-encoded on the device, which also strips EXIF/location data. */
+function PhotoPick({ label, hint, value, onChange }: { label: string; hint: string; value: Blob | null; onChange(b: Blob | null): void }) {
+  const toast = useToast();
+  const input = useRef<HTMLInputElement>(null);
+  const [preview, setPreview] = useState<string | null>(null);
+  const [working, setWorking] = useState(false);
+
+  useEffect(() => {
+    if (!value) return setPreview(null);
+    const url = URL.createObjectURL(value);
+    setPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [value]);
+
+  async function pick(file: File | undefined) {
+    if (!file) return;
+    setWorking(true);
+    try {
+      onChange(await compressImage(file, 1600, 0.85));
+    } catch (e) {
+      toast.error('Could not use this photo', (e as Error).message);
+    } finally {
+      setWorking(false);
+      if (input.current) input.current.value = '';
+    }
+  }
+
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={() => input.current?.click()}
+        className={cn(
+          'relative flex aspect-[4/3] w-full flex-col items-center justify-center overflow-hidden rounded-2xl border-2 border-dashed text-center transition',
+          value ? 'border-primary-500/50' : 'border-line hover:border-primary-500/50'
+        )}
+      >
+        {preview ? (
+          <>
+            <img src={preview} alt="" className="absolute inset-0 h-full w-full object-cover" />
+            <span className="absolute bottom-2 right-2 rounded-full bg-black/60 px-2.5 py-1 text-[11px] font-semibold text-white">Change</span>
+          </>
+        ) : (
+          <span className="px-2 text-ink-3">
+            <Camera className="mx-auto h-6 w-6" />
+            <span className="mt-1.5 block text-xs font-semibold">{working ? 'Processing…' : 'Add photo'}</span>
+          </span>
+        )}
+      </button>
+      <p className="mt-1.5 text-xs font-semibold text-ink">{label}</p>
+      <p className="text-[11px] text-ink-3">{hint}</p>
+      <input ref={input} type="file" accept="image/jpeg,image/png,image/webp,image/heic" hidden onChange={(e) => pick(e.target.files?.[0])} />
+    </div>
   );
 }
 

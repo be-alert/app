@@ -94,6 +94,7 @@ async function hydrate(rows: PostRow[], viewer?: string | null): Promise<PostWit
 }
 
 const POST_SELECT = '*, poll_options(*), comments(count)';
+const DOCS_BUCKET = 'verification-docs';
 // Signed-out visitors may not read posts.metadata (it can hold contact phone numbers);
 // they read public_metadata instead: the same JSON with the phone fields removed.
 const PUBLIC_POST_SELECT =
@@ -218,12 +219,14 @@ const auth: AuthApi = {
     const userId = data.user?.id;
     if (!userId) return { error: 'Please sign in again.' };
     // Photos live in storage under "<userId>/…"; remove them first (storage is not covered by SQL cascades).
-    const bucket = sb().storage.from('post-images');
-    for (;;) {
-      const { data: files } = await bucket.list(userId, { limit: 100 });
-      if (!files?.length) break;
-      const { error } = await bucket.remove(files.map((f) => `${userId}/${f.name}`));
-      if (error) break;
+    for (const name of ['post-images', DOCS_BUCKET]) {
+      const bucket = sb().storage.from(name);
+      for (;;) {
+        const { data: files } = await bucket.list(userId, { limit: 100 });
+        if (!files?.length) break;
+        const { error } = await bucket.remove(files.map((f) => `${userId}/${f.name}`));
+        if (error) break;
+      }
     }
     const { error } = await sb().rpc('delete_my_account');
     if (error) return { error: error.message };
@@ -251,8 +254,22 @@ const auth: AuthApi = {
     fail(error);
     emitChange('profile');
   },
-  async submitVerification(_userId, cnic, isBusiness) {
-    const { error } = await sb().rpc('submit_verification', { p_cnic: cnic.replace(/\D/g, ''), p_is_business: isBusiness });
+  async submitVerification(userId, cnic, isBusiness, photos) {
+    // Private bucket, own folder only (enforced by storage policies); the database then checks
+    // the files exist before accepting the request.
+    const bucket = sb().storage.from(DOCS_BUCKET);
+    const stamp = Date.now();
+    const paths = [`${userId}/${stamp}-cnic-front.jpg`, `${userId}/${stamp}-selfie.jpg`];
+    const blobs = [photos.front, photos.selfie];
+    for (let i = 0; i < paths.length; i++) {
+      const { error } = await bucket.upload(paths[i], blobs[i], { contentType: 'image/jpeg', upsert: false });
+      if (error) {
+        await bucket.remove(paths.slice(0, i));
+        throw new Error('Could not upload your photos. Please try again.');
+      }
+    }
+    const { error } = await sb().rpc('submit_verification', { p_cnic: cnic.replace(/\D/g, ''), p_is_business: isBusiness, p_docs: paths });
+    if (error) await bucket.remove(paths); // nothing to review: don't keep ID photos around
     fail(error);
     emitChange('profile');
   },
@@ -308,14 +325,22 @@ const admin: AdminApi = {
     fail(error);
     return (data ?? []) as VerificationRequest[];
   },
+  async verificationPhotoUrls(paths) {
+    if (!paths.length) return [];
+    const { data, error } = await sb().storage.from(DOCS_BUCKET).createSignedUrls(paths, 300); // valid 5 minutes
+    fail(error);
+    return (data ?? []).map((d) => d.signedUrl ?? '');
+  },
   async reviewVerification(_adminId, userId, decision, notes, expiry) {
-    const { error } = await sb().rpc('admin_review_verification', {
+    const { data: photos, error } = await sb().rpc('admin_review_verification', {
       p_user_id: userId,
       p_decision: decision,
       p_notes: notes,
       p_expiry: expiry,
     });
     fail(error);
+    // The decision is recorded; the ID photos are no longer needed.
+    if (Array.isArray(photos) && photos.length) await sb().storage.from(DOCS_BUCKET).remove(photos as string[]);
     emitChange('admin');
   },
   async listListings(status) {
