@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   Bell,
   BadgeCheck,
@@ -73,6 +73,14 @@ export function Profile() {
 }
 
 function ProfileContent() {
+  // Deep links like /profile#verification (e.g. from "verify to post") scroll to that section.
+  const { hash } = useLocation();
+  useEffect(() => {
+    if (!hash) return;
+    const t = setTimeout(() => document.getElementById(hash.slice(1))?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 250);
+    return () => clearTimeout(t);
+  }, [hash]);
+
   const { profile, signOut } = useAuth();
   if (!profile) return null;
   return (
@@ -266,7 +274,12 @@ function VerificationSection({ profile }: { profile: ProfileT }) {
   }
 
   return (
-    <Section id="verification" icon={ShieldCheck} title="CNIC verification" description="Verified neighbours get a blue badge, a trust boost and more responses.">
+    <Section
+      id="verification"
+      icon={ShieldCheck}
+      title="CNIC verification"
+      description="Needed only if you offer services, tutoring, domestic help, rentals, jobs or shop deals. Verified members get a blue badge and a trust boost."
+    >
       {status === 'approved' && v !== 'expired' ? (
         <div className="flex items-center gap-3 rounded-2xl bg-primary-600/5 p-4 ring-1 ring-primary-500/20">
           <BadgeCheck className="h-8 w-8 fill-primary-600 text-white" />

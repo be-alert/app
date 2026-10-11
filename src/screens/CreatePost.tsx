@@ -105,9 +105,13 @@ function Composer({ editId }: { editId: string | null }) {
   const blockedReason = (slug: string): string | null => {
     if (isAdmin || editId) return null;
     if (settings.disabled_categories.includes(slug)) return 'Turned off by the app owner';
-    if (settings.verified_only_categories.includes(slug) && !isVerified) return 'CNIC-verified members only';
+    if (settings.verified_only_categories.includes(slug) && !isVerified)
+      return profile?.verification_status === 'pending' ? 'Your CNIC verification is being reviewed' : 'Providers: verify your CNIC to post here';
     return null;
   };
+  /** Provider categories the user can unlock by verifying (unlike ones the owner turned off). */
+  const needsVerification = (slug: string) =>
+    !isAdmin && !editId && settings.verified_only_categories.includes(slug) && !isVerified && !settings.disabled_categories.includes(slug);
   const rawPreset = params.get('category');
   const presetCategory = rawPreset && !blockedReason(rawPreset) ? rawPreset : null;
 
@@ -326,9 +330,18 @@ function Composer({ editId }: { editId: string | null }) {
                       return (
                         <button
                           key={c.slug}
-                          disabled={Boolean(blocked)}
+                          disabled={Boolean(blocked) && !needsVerification(c.slug)}
                           title={blocked ?? undefined}
                           onClick={() => {
+                            if (needsVerification(c.slug)) {
+                              if (profile?.verification_status === 'pending') {
+                                toast.info('Verification under review', 'You can post here as soon as a moderator approves your CNIC.');
+                              } else {
+                                toast.info('Verify your CNIC first', `${c.label} is for verified providers. It takes 2 minutes.`);
+                                navigate('/profile#verification');
+                              }
+                              return;
+                            }
                             set('category', c.slug);
                             setStep(1);
                           }}

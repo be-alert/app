@@ -172,9 +172,18 @@ $$;
 REVOKE ALL ON FUNCTION public.admin_review_verification(uuid, text, text, timestamptz) FROM public, anon;
 GRANT EXECUTE ON FUNCTION public.admin_review_verification(uuid, text, text, timestamptz) TO authenticated;
 
+-- ── 6. Providers must be verified to post (regular users never need a CNIC) ──
+-- Service providers, tutors, domestic help, rentals, job ads and shop deals. The owner can
+-- change this list any time in Owner Console → App settings. Enforced by can_post_category()
+-- in the posts INSERT policy, so a modified app can't skip it.
+UPDATE public.app_settings
+   SET verified_only_categories = ARRAY['home_services', 'tuition', 'domestic_help', 'property_rent', 'jobs_internships', 'local_deals']
+ WHERE id = 1;
+
 -- ── Result ──────────────────────────────────────────────────────────────────
 SELECT
   '✅ BE ALERT CNIC PHOTOS OK' AS result,
   (SELECT public FROM storage.buckets WHERE id = 'verification-docs') AS bucket_is_public,
   (SELECT count(*) FROM pg_policies WHERE schemaname = 'storage' AND policyname LIKE 'verification_docs_%') AS storage_policies,
-  (SELECT count(*) FROM pg_proc WHERE proname = 'submit_verification') AS submit_versions;
+  (SELECT count(*) FROM pg_proc WHERE proname = 'submit_verification') AS submit_versions,
+  (SELECT cardinality(verified_only_categories) FROM public.app_settings WHERE id = 1) AS provider_categories;
