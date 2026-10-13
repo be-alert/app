@@ -1,7 +1,7 @@
 {
   "name": "be-alert",
   "private": true,
-  "version": "3.8.0",
+  "version": "3.9.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -25,6 +25,7 @@
     "@capacitor/share": "^8.0.2",
     "@capacitor/splash-screen": "^8.0.2",
     "@capacitor/status-bar": "^8.0.3",
+    "@capgo/capacitor-social-login": "8.5.11",
     "@supabase/supabase-js": "^2.57.4",
     "firebase": "^12.19.0",
     "leaflet": "^1.9.4",

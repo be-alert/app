@@ -46,6 +46,8 @@ export const ENV = {
   websiteUrl: str(env.VITE_WEBSITE_URL),
   /** Cloudflare Turnstile site key (public). Set only after CAPTCHA is enabled in Supabase Auth. */
   turnstileSiteKey: str(env.VITE_TURNSTILE_SITE_KEY),
+  /** Google OAuth *web* client ID (public). Used by Google's button (web) and the Android account picker. */
+  googleClientId: str(env.VITE_GOOGLE_CLIENT_ID),
 } as const;
 
 /** Path the app is served from: "/" normally, "/" (app.bealert.online). */

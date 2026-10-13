@@ -7,6 +7,8 @@ import { useApi } from '@/data';
 import type { EmailCodeKind } from '@/data/api';
 import { Turnstile, captchaEnabled } from '@/components/Turnstile';
 import { cn } from '@/lib/format';
+import { isNative } from '@/lib/native';
+import { renderGoogleButton, type GoogleCredential } from '@/lib/googleSignIn';
 
 type Mode = 'signin' | 'signup';
 type Step = 'start' | 'code' | 'newPassword' | 'name';
@@ -34,6 +36,7 @@ export function AuthSheet() {
     sendPasswordReset,
     updatePassword,
     signInWithGoogle,
+    signInWithGoogleToken,
   } = useAuth();
   const api = useApi();
   const toast = useToast();
@@ -161,13 +164,29 @@ export function AuthSheet() {
     return finish();
   }
 
+  /** Android: Google's account picker slides up inside the app. */
   async function google() {
     setBusy(true);
     setError(null);
-    const res = await signInWithGoogle();
-    // On success the page goes to Google (web) or the browser opens (Android).
-    setBusy(false);
-    if (res.error) setError(friendlyError(res.error));
+    const res = await signInWithGoogle(takeCaptcha());
+    if (res.error || res.cancelled) {
+      setBusy(false);
+      if (res.error) setError(googleError(res.error));
+      return;
+    }
+    return finish();
+  }
+
+  /** Web: Google's own button handed us a token. */
+  async function googleToken(c: GoogleCredential) {
+    setBusy(true);
+    setError(null);
+    const res = await signInWithGoogleToken(c.idToken, c.nonce, takeCaptcha());
+    if (res.error) {
+      setBusy(false);
+      return setError(googleError(res.error));
+    }
+    return finish();
   }
 
   async function sendLoginCode() {
@@ -274,9 +293,13 @@ export function AuthSheet() {
             <h2 className="text-xl font-extrabold tracking-tight text-ink">{mode === 'signup' ? 'Create your Be Alert account' : 'Sign in to Be Alert'}</h2>
             <p className="mt-1.5 text-sm text-ink-2">{authPrompt.reason ?? 'Post, vote and connect with neighbours.'}</p>
 
-            <button type="button" onClick={google} disabled={busy} className="btn-secondary mt-5 h-12 w-full gap-3 text-[15px]">
-              <GoogleLogo /> Continue with Google
-            </button>
+            {isNative ? (
+              <button type="button" onClick={google} disabled={busy} className="btn-secondary mt-5 h-12 w-full gap-3 text-[15px]">
+                <GoogleLogo /> Continue with Google
+              </button>
+            ) : (
+              <GoogleWebButton onCredential={googleToken} onError={(m) => setError(m)} />
+            )}
             <div className="my-4 flex items-center gap-3 text-xs font-semibold text-ink-3">
               <span className="h-px flex-1 bg-line" /> or use your email <span className="h-px flex-1 bg-line" />
             </div>
@@ -438,6 +461,34 @@ export function AuthSheet() {
   );
 }
 
+/** Google's official button (Google Identity Services). Falls back to a note if Google can't load. */
+function GoogleWebButton({ onCredential, onError }: { onCredential: (c: GoogleCredential) => void; onError: (msg: string) => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const cb = useRef(onCredential);
+  cb.current = onCredential;
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    let alive = true;
+    renderGoogleButton(el, (c) => cb.current(c), el.clientWidth || 320).catch((e: Error) => {
+      if (!alive) return;
+      setFailed(true);
+      onError(e.message);
+    });
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  return (
+    <div className="mt-5">
+      <div ref={ref} className="flex h-11 w-full justify-center" aria-label="Continue with Google" />
+      {failed && <p className="mt-1 text-center text-xs text-ink-3">Google sign-in is unavailable right now — use your email below.</p>}
+    </div>
+  );
+}
+
 function GoogleLogo() {
   return (
     <svg viewBox="0 0 48 48" className="h-5 w-5" aria-hidden="true">
@@ -450,6 +501,15 @@ function GoogleLogo() {
 }
 
 /** Turn Supabase's technical auth errors into plain language. */
+function googleError(msg: string): string {
+  console.warn('[Be Alert] Google sign-in:', msg);
+  if (/provider is not enabled|unsupported provider|not configured/i.test(msg)) return 'Google sign-in isn’t switched on yet. Please use your email for now.';
+  if (/captcha/i.test(msg)) return 'Security check failed. Please wait a moment and try again.';
+  if (/fetch|network|connection/i.test(msg)) return 'No internet connection. Check your connection and try again.';
+  if (/rate limit|too many/i.test(msg)) return 'Too many attempts. Please wait a minute and try again.';
+  return 'Google sign-in didn’t work. Please try again, or use your email below.';
+}
+
 function friendlyError(msg: string): string {
   if (/invalid login credentials/i.test(msg)) return 'Wrong email or password. Try again, or tap “Forgot password?”.';
   if (/rate limit|too many|seconds/i.test(msg)) return 'Too many attempts. Please wait a minute and try again.';

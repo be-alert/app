@@ -20,7 +20,8 @@ interface AuthContextValue {
   sendPasswordReset: AuthApi['sendPasswordReset'];
   updatePassword: AuthApi['updatePassword'];
   adminSignIn(email: string, password: string, captchaToken?: string): Promise<{ error: string | null }>;
-  signInWithGoogle(): Promise<{ error: string | null }>;
+  signInWithGoogle: AuthApi['signInWithGoogle'];
+  signInWithGoogleToken: AuthApi['signInWithGoogleToken'];
   signOut(): Promise<void>;
   deleteMyAccount(): Promise<{ error: string | null }>;
   refreshProfile(): Promise<void>;
@@ -132,7 +133,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       sendPasswordReset: (e, t) => api.auth.sendPasswordReset(e, t),
       updatePassword: (pw) => api.auth.updatePassword(pw),
       adminSignIn: (e, pw, t) => api.auth.adminSignIn(e, pw, t),
-      signInWithGoogle: () => api.auth.signInWithGoogle(),
+      signInWithGoogle: (c) => api.auth.signInWithGoogle(c),
+      signInWithGoogleToken: (t, n, c) => api.auth.signInWithGoogleToken(t, n, c),
       signOut: async () => {
         await api.auth.signOut();
         setUser(null);

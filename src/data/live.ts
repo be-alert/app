@@ -9,7 +9,8 @@ import { emitChange } from './events';
 import { compressImage } from './images';
 import { requireSupabase } from '@/lib/supabase';
 import { appUrl } from '@/config/env';
-import { APP_AUTH_CALLBACK, isNative, openExternal } from '@/lib/native';
+import { APP_AUTH_CALLBACK, isNative } from '@/lib/native';
+import { GoogleCancelled, nativeGoogleSignIn } from '@/lib/googleSignIn';
 import { boundingBox } from '@/lib/location';
 import { uid } from '@/lib/format';
 import { DEFAULT_SETTINGS, type AppSettings } from '@/lib/types';
@@ -207,19 +208,17 @@ const auth: AuthApi = {
     const { error } = await sb().auth.updateUser({ password });
     return { error: error?.message ?? null };
   },
-  async signInWithGoogle() {
-    if (isNative) {
-      // Google refuses sign-in inside an embedded WebView, so the Android app opens the
-      // system browser; Google then sends the user back to the app via APP_AUTH_CALLBACK.
-      const { data, error } = await sb().auth.signInWithOAuth({
-        provider: 'google',
-        options: { redirectTo: APP_AUTH_CALLBACK, skipBrowserRedirect: true },
-      });
-      if (error || !data.url) return { error: error?.message ?? 'Could not start Google sign-in.' };
-      await openExternal(data.url);
-      return { error: null };
+  async signInWithGoogle(captchaToken) {
+    try {
+      const { idToken, nonce } = await nativeGoogleSignIn();
+      return await auth.signInWithGoogleToken(idToken, nonce, captchaToken);
+    } catch (e) {
+      if (e instanceof GoogleCancelled) return { error: null, cancelled: true };
+      return { error: (e as Error).message || 'Could not sign in with Google.' };
     }
-    const { error } = await sb().auth.signInWithOAuth({ provider: 'google', options: { redirectTo: appUrl('') } });
+  },
+  async signInWithGoogleToken(idToken, nonce, captchaToken) {
+    const { error } = await sb().auth.signInWithIdToken({ provider: 'google', token: idToken, nonce, options: { captchaToken } });
     return { error: error?.message ?? null };
   },
   async adminSignIn(email, password, captchaToken) {

@@ -21,6 +21,11 @@ const config: CapacitorConfig = {
       androidScaleType: 'CENTER_CROP',
       showSpinner: false,
     },
+    // Native Google account picker only; other providers are not bundled.
+    SocialLogin: {
+      providers: { google: true, facebook: false, apple: false, twitter: false },
+      logLevel: 1,
+    },
   },
 };
 
