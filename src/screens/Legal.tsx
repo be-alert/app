@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { PageBody, PageHeader } from '@/components/layout/Page';
 
-const UPDATED = '8 October 2026';
+const UPDATED = '13 October 2026';
 /** Public support address shown on the legal pages (set VITE_SUPPORT_EMAIL at build time). */
 const SUPPORT_EMAIL = (import.meta.env.VITE_SUPPORT_EMAIL as string | undefined)?.trim() || '';
 
@@ -20,12 +20,31 @@ function Doc({ title, children }: { title: string; children: ReactNode }) {
 }
 
 function Contact() {
-  return SUPPORT_EMAIL ? (
+  return (
     <p>
-      Questions or requests: <a className="font-semibold text-primary-600 underline" href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a>
+      Questions or requests:{' '}
+      {SUPPORT_EMAIL ? (
+        <a className="font-semibold text-primary-600 underline" href={`mailto:${SUPPORT_EMAIL}`}>
+          {SUPPORT_EMAIL}
+        </a>
+      ) : (
+        'use “Report” on any post, or contact the Be Alert team through the app'
+      )}
+      . Website:{' '}
+      <a className="font-semibold text-primary-600 underline" href="https://bealert.online" target="_blank" rel="noreferrer">
+        bealert.online
+      </a>
     </p>
-  ) : (
-    <p>Questions or requests: use “Report” on any post, or contact the Be Alert team through the app.</p>
+  );
+}
+
+/** Where Be Alert is offered — the same service, one account. */
+function WhereWeAre() {
+  return (
+    <p>
+      Be Alert is offered on the website <strong>bealert.online</strong>, as a web app at <strong>app.bealert.online</strong> and as an Android app. They are
+      one service with one account, and this document applies to all of them.
+    </p>
   );
 }
 
@@ -36,11 +55,13 @@ export function PrivacyPolicy() {
         Be Alert (“we”, “the app”) is a neighbourhood app that shows posts, alerts and services near you. This policy explains what we collect, why, and the
         choices you have. We do <strong>not</strong> sell your data and we do <strong>not</strong> show third-party ads.
       </p>
+      <WhereWeAre />
 
       <section>
         <h2>What we collect</h2>
         <ul>
-          <li><strong>Account:</strong> your email address (used to sign in with your password or a one-time email code) and the display name you choose.</li>
+          <li><strong>Account:</strong> your email address (used to sign in with your password or a one-time email code) and the display name you choose. If you
+            use “Continue with Google”, Google shares your name and email address with us — nothing else.</li>
           <li><strong>Location:</strong> with your permission, your device location is used to show posts within the radius you pick (1–50 km) and to place
             posts you create on the map. You can instead choose a city manually. We do not track your location in the background.</li>
           <li><strong>Content you post:</strong> posts, photos, comments, votes, RSVPs, bookmarks and business listings.</li>
@@ -78,8 +99,11 @@ export function PrivacyPolicy() {
         <ul>
           <li><strong>Supabase</strong> — secure database, file storage and sign-in.</li>
           <li><strong>OpenStreetMap / Nominatim</strong> — maps and city search (your search text is sent to look up places).</li>
+          <li><strong>Google Sign-In</strong> — only if you choose “Continue with Google”.</li>
+          <li><strong>Cloudflare Turnstile</strong> — a bot check on the sign-in screen; it reads technical browser signals, not your content.</li>
+          <li><strong>Email delivery</strong> — your sign-in and password-reset codes are sent through our email provider.</li>
           <li><strong>Firebase Cloud Messaging</strong> — push notifications, only if enabled.</li>
-          <li><strong>GitHub Pages</strong> — hosting of the website version.</li>
+          <li><strong>GitHub Pages</strong> — hosting of bealert.online and app.bealert.online.</li>
         </ul>
         <p>Data is sent over encrypted connections (HTTPS). Access to the database is restricted by row-level security rules.</p>
       </section>
@@ -124,6 +148,7 @@ export function TermsOfUse() {
   return (
     <Doc title="Terms of Use">
       <p>By using Be Alert you agree to these terms. If you do not agree, please do not use the app.</p>
+      <WhereWeAre />
 
       <section>
         <h2>Your account</h2>
@@ -131,6 +156,8 @@ export function TermsOfUse() {
           <li>You must be at least 13 years old.</li>
           <li>Use your own email and keep access to it secure. You are responsible for activity on your account.</li>
           <li>Verified badges are given after checks and can be removed if information turns out to be false.</li>
+          <li>To post services, tutoring, domestic help, rentals, jobs or shop deals you must first verify your CNIC; to offer rides you must add a valid
+            driving licence. Submitting someone else’s documents is not allowed and leads to removal.</li>
         </ul>
       </section>
 
@@ -178,7 +205,7 @@ export function TermsOfUse() {
 
       <section>
         <h2>Changes and contact</h2>
-        <p>We may update these terms; continuing to use the app means you accept the updated terms.</p>
+        <p>We may update these terms; continuing to use the app means you accept the updated terms. These terms are governed by the laws of Pakistan.</p>
         <Contact />
       </section>
       <p className="text-sm">

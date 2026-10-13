@@ -117,7 +117,7 @@ function webApp(mode: string) {
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
   // GitHub Pages serves the site from /<repo-name>/; everything else from /.
-  const base = mode === 'pages' ? '/app/' : '/';
+  const base = '/';
   return {
   base,
   plugins: [react(), guardSecrets(mode), contentSecurityPolicy(mode), webApp(mode)],
