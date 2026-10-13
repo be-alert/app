@@ -417,7 +417,6 @@ const auth: AuthApi = {
     if (u) {
       if (patch.display_name !== undefined) u.display_name = patch.display_name;
       if (patch.avatar_url !== undefined) u.avatar_url = patch.avatar_url;
-      if (patch.is_business !== undefined) u.is_business = patch.is_business;
     }
     save();
     emitChange('profile');

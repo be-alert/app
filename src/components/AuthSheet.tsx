@@ -466,6 +466,8 @@ function GoogleWebButton({ onCredential, onError }: { onCredential: (c: GoogleCr
   const ref = useRef<HTMLDivElement>(null);
   const cb = useRef(onCredential);
   cb.current = onCredential;
+  const err = useRef(onError);
+  err.current = onError;
   const [failed, setFailed] = useState(false);
   useEffect(() => {
     const el = ref.current;
@@ -474,12 +476,11 @@ function GoogleWebButton({ onCredential, onError }: { onCredential: (c: GoogleCr
     renderGoogleButton(el, (c) => cb.current(c), el.clientWidth || 320).catch((e: Error) => {
       if (!alive) return;
       setFailed(true);
-      onError(e.message);
+      err.current(e.message);
     });
     return () => {
       alive = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   return (
     <div className="mt-5">

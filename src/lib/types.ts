@@ -128,7 +128,6 @@ export type ProfilePatch = Partial<
     Profile,
     | 'display_name'
     | 'avatar_url'
-    | 'is_business'
     | 'radius_km'
     | 'saved_locations'
     | 'watched_areas'
