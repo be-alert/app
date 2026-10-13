@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit -p tsconfig.app.json",
-    "build:pages": "vite build --mode pages && node scripts/spa-fallback.mjs",
+    "build:pages": "vite build --mode pages && node scripts/spa-fallback.mjs && node scripts/prerender-legal.mjs pages",
     "deploy:pages": "npm run build:pages && gh-pages -d dist --dotfiles -m \"Deploy Be Alert\"",
     "build:android": "vite build --mode android && node -e \"require('fs').rmSync('dist/screenshots',{recursive:true,force:true})\" && cap sync android",
     "apk": "npm run build:android && cd android && gradlew.bat assembleDebug",

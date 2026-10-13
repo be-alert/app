@@ -65,7 +65,8 @@ export function PrivacyPolicy() {
           <li><strong>Location:</strong> with your permission, your device location is used to show posts within the radius you pick (1–50 km) and to place
             posts you create on the map. You can instead choose a city manually. We do not track your location in the background.</li>
           <li><strong>Content you post:</strong> posts, photos, comments, votes, RSVPs, bookmarks and business listings.</li>
-          <li><strong>Verification (optional):</strong> if you request a verified badge, your CNIC number, a photo of your CNIC (front) and a selfie
+          <li><strong>CNIC verification (required only to offer services):</strong> to post services, tutoring, domestic help, rentals, jobs
+            or shop deals, or to get a verified badge, your CNIC number, a photo of your CNIC (front) and a selfie
             holding it. They are stored privately and visible only to the app owner and admins for checking, never to other users. The photos are
             deleted as soon as your request is approved or rejected; we keep your CNIC number (to stop one CNIC verifying several accounts) and the
             decision. Photos are resized on your device before upload, which removes hidden location data.</li>
@@ -92,6 +93,22 @@ export function PrivacyPolicy() {
           Your display name, profile picture, trust score, verified badge and the posts you publish are visible to other users. Your email address, phone
           number and CNIC are never shown to other users.
         </p>
+      </section>
+
+      <section>
+        <h2>Google user data</h2>
+        <p>If you choose “Continue with Google”, Be Alert receives the following from your Google Account, and nothing else:</p>
+        <ul>
+          <li><strong>What we access:</strong> your name, email address and a Google account ID (from Google’s sign-in token). We do not ask for
+            access to your contacts, Gmail, Drive, calendar or any other Google data.</li>
+          <li><strong>How we use it:</strong> only to create your Be Alert account and sign you in, and to suggest your display name the first time.
+            Your email address is never shown to other users.</li>
+          <li><strong>Sharing:</strong> we do not sell, rent or share Google user data with anyone, and we do not use it for advertising.</li>
+          <li><strong>Storage and protection:</strong> it is stored with your account in our Supabase database over encrypted connections, protected
+            by access rules so only you (and the app owner/admins, for safety) can read it.</li>
+          <li><strong>Deletion:</strong> delete your account in Profile → Privacy &amp; data → Delete my account and this data is removed straight away.
+            You can also remove Be Alert’s access at any time in your Google Account under Security → Third-party connections.</li>
+        </ul>
       </section>
 
       <section>
