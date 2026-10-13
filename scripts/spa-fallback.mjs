@@ -5,9 +5,9 @@
 import { copyFileSync, mkdirSync, writeFileSync } from 'node:fs';
 
 copyFileSync('dist/index.html', 'dist/404.html');
-for (const page of ['privacy', 'terms']) {
+for (const page of ['privacy', 'terms', 'delete-account']) {
   mkdirSync(`dist/${page}`, { recursive: true });
   copyFileSync('dist/index.html', `dist/${page}/index.html`);
 }
 writeFileSync('dist/.nojekyll', '');
-console.log('✔ dist/404.html, privacy/, terms/ + .nojekyll written for GitHub Pages');
+console.log('✔ dist/404.html, privacy/, terms/, delete-account/ + .nojekyll written for GitHub Pages');

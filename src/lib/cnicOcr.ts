@@ -41,7 +41,8 @@ function getWorker(): Promise<OcrWorker> {
       langPath: OCR_BASE.replace(/\/$/, ''),
       gzip: true,
     });
-    await worker.setParameters({ tessedit_char_whitelist: '0123456789-', tessedit_pageseg_mode: PSM.SPARSE_TEXT });
+    // Phone photos carry no DPI; a fixed value avoids guessing (and its console noise).
+    await worker.setParameters({ tessedit_char_whitelist: '0123456789-', tessedit_pageseg_mode: PSM.SPARSE_TEXT, user_defined_dpi: '300' });
     return worker;
   })().catch((e) => {
     workerPromise = null;

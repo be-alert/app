@@ -1,6 +1,9 @@
-import type { ReactNode } from 'react';
-import { Link } from 'react-router-dom';
+import { useEffect, useState, type ReactNode } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Trash2 } from 'lucide-react';
 import { PageBody, PageHeader } from '@/components/layout/Page';
+import { useToast } from '@/components/ui';
+import { useAuth } from '@/lib/auth';
 
 const UPDATED = '13 October 2026';
 /** Public support address shown on the legal pages (set VITE_SUPPORT_EMAIL at build time). */
@@ -131,7 +134,8 @@ export function PrivacyPolicy() {
         <h2>Your choices and rights</h2>
         <ul>
           <li><strong>Download your data:</strong> Profile → Privacy &amp; data → Export.</li>
-          <li><strong>Delete your account:</strong> Profile → Privacy &amp; data → Delete my account. This permanently removes your account, posts, comments,
+          <li><strong>Delete your account:</strong> Profile → Privacy &amp; data → Delete my account, or on the web at{' '}
+            <Link to="/delete-account" className="font-semibold text-primary-600 underline">app.bealert.online/delete-account</Link>. This permanently removes your account, posts, comments,
             photos and listings straight away.</li>
           <li>You can turn off location permission and notifications at any time in your phone settings.</li>
         </ul>
@@ -234,3 +238,99 @@ export function TermsOfUse() {
     </Doc>
   );
 }
+
+/**
+ * Public account-deletion page (Google Play requires a web link for this).
+ * The text is prerendered into dist/delete-account/ so it reads without JavaScript;
+ * the sign-in / delete controls appear once the app has loaded.
+ */
+export function DeleteAccount() {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  return (
+    <Doc title="Delete your Be Alert account">
+      <p>
+        You can permanently delete your Be Alert account and the data linked to it at any time, from the Android app or from this page. Deletion
+        happens straight away — there is no waiting period.
+      </p>
+
+      <section>
+        <h2>How to delete your account</h2>
+        <ul>
+          <li><strong>In the Android app or web app:</strong> open Profile → Privacy &amp; data → Delete my account, type DELETE and confirm.</li>
+          <li><strong>On this page:</strong> sign in below and press “Delete my account”.</li>
+          <li><strong>Forgot your password?</strong> Choose “Email me a 6-digit code instead” when signing in — you don’t need your password.</li>
+        </ul>
+      </section>
+
+      {mounted && <DeleteAccountActions />}
+
+      <section>
+        <h2>What is deleted</h2>
+        <ul>
+          <li>Your account, email address, display name, profile photo and settings.</li>
+          <li>Your posts, photos, comments, votes, RSVPs, bookmarks, reports, trusted contacts and business listings.</li>
+          <li>Your CNIC and driving-licence details, and any verification photos still waiting for review.</li>
+          <li>If you signed in with Google, the name and email we received from Google.</li>
+        </ul>
+      </section>
+
+      <section>
+        <h2>What is kept</h2>
+        <p>
+          Records of moderation actions taken by Be Alert admins (for example, that a post was removed) are kept for safety, without your name,
+          email or other personal details. Nothing else is kept.
+        </p>
+        <Contact />
+      </section>
+      <p className="text-sm">
+        See also our <Link to="/privacy" className="font-semibold text-primary-600 underline">Privacy Policy</Link>.
+      </p>
+    </Doc>
+  );
+}
+
+function DeleteAccountActions() {
+  const { user, profile, requireAuth, deleteMyAccount } = useAuth();
+  const toast = useToast();
+  const navigate = useNavigate();
+  const [text, setText] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  if (!user)
+    return (
+      <div className="rounded-2xl bg-surface-2 p-4">
+        <p className="mb-3 text-sm text-ink-2">Sign in to the account you want to delete.</p>
+        <button className="btn-primary" onClick={() => void requireAuth('Sign in to delete your account')}>
+          Sign in
+        </button>
+      </div>
+    );
+  if (profile?.is_owner)
+    return <p className="rounded-2xl bg-surface-2 p-4 text-sm text-ink-2">The owner account can’t be deleted from the app.</p>;
+
+  async function remove() {
+    if (text.trim().toUpperCase() !== 'DELETE') return toast.error('Type DELETE to confirm');
+    setBusy(true);
+    const { error } = await deleteMyAccount();
+    setBusy(false);
+    if (error) return toast.error('Could not delete account', error);
+    toast.success('Your account has been deleted');
+    navigate('/', { replace: true });
+  }
+
+  return (
+    <div className="rounded-2xl bg-danger-50 p-4 dark:bg-danger-500/10">
+      <p className="text-sm text-ink">
+        Signed in as <b>{profile?.display_name || user.email || 'your account'}</b>. Type <b>DELETE</b> to confirm — this can’t be undone.
+      </p>
+      <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+        <input className="input h-11 flex-1" value={text} onChange={(e) => setText(e.target.value)} placeholder="DELETE" aria-label="Type DELETE to confirm" />
+        <button className="btn-primary h-11 bg-danger-600 hover:bg-danger-700" disabled={busy} onClick={() => void remove()}>
+          <Trash2 className="h-4 w-4" /> {busy ? 'Deleting…' : 'Delete my account'}
+        </button>
+      </div>
+    </div>
+  );
+}
+

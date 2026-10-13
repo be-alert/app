@@ -30,6 +30,7 @@ const Onboarding = named(() => import('@/screens/Onboarding'), 'Onboarding');
 const NotFound = named(() => import('@/screens/NotFound'), 'NotFound');
 const PrivacyPolicy = named(() => import('@/screens/Legal'), 'PrivacyPolicy');
 const TermsOfUse = named(() => import('@/screens/Legal'), 'TermsOfUse');
+const DeleteAccount = named(() => import('@/screens/Legal'), 'DeleteAccount');
 const AdminLogin = named(() => import('@/screens/admin/AdminLogin'), 'AdminLogin');
 const AdminDashboard = named(() => import('@/screens/admin/AdminDashboard'), 'AdminDashboard');
 
@@ -129,6 +130,7 @@ export default function App() {
                       <Route path="emergency" element={<Emergency />} />
                       <Route path="privacy" element={<PrivacyPolicy />} />
                       <Route path="terms" element={<TermsOfUse />} />
+                      <Route path="delete-account" element={<DeleteAccount />} />
                       <Route path="*" element={<NotFound />} />
                     </Route>
                   </Routes>
