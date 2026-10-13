@@ -56,8 +56,21 @@ async function uploadIdPhotos(userId: string, kind: 'cnic' | 'licence', photos: 
   return paths;
 }
 
-function fail(error: { message: string } | null): void {
-  if (error) throw new Error(error.message);
+/** Database internals (table/column/constraint names, SQL hints) are never shown to users. */
+const INTERNAL_ERROR = /permission denied|row-level security|violates|relation |column |constraint|does not exist|syntax error|schema cache|function .*\(|JWT|PGRST|duplicate key|invalid input syntax/i;
+
+function friendly(error: { message: string; code?: string }): string {
+  if (!INTERNAL_ERROR.test(error.message)) return error.message; // our own messages (RAISE in SQL) are written for users
+  console.warn('[Be Alert] Request failed:', error.code, error.message);
+  if (error.code === '23505' || /duplicate key/i.test(error.message)) return 'That already exists.';
+  if (error.code === '42501' || /permission denied|row-level security/i.test(error.message)) return 'You don’t have permission to do that. Try signing in again.';
+  if (error.code?.startsWith('22') || error.code?.startsWith('23')) return 'Some details aren’t valid. Please check and try again.';
+  if (/JWT/i.test(error.message)) return 'Your session has expired. Please sign in again.';
+  return 'Something went wrong. Please try again.';
+}
+
+function fail(error: { message: string; code?: string } | null): void {
+  if (error) throw new Error(friendly(error));
 }
 
 type PostRow = Post & { poll_options?: PostWithRelations['poll_options']; comments?: { count: number }[]; public_metadata?: Post['metadata'] };
@@ -249,7 +262,7 @@ const auth: AuthApi = {
       }
     }
     const { error } = await sb().rpc('delete_my_account');
-    if (error) return { error: error.message };
+    if (error) return { error: friendly(error) };
     await sb().auth.signOut();
     return { error: null };
   },
@@ -274,12 +287,20 @@ const auth: AuthApi = {
     fail(error);
     emitChange('profile');
   },
-  async submitVerification(userId, cnic, isBusiness, photos) {
-    const paths = await uploadIdPhotos(userId, 'cnic', photos);
-    const { error } = await sb().rpc('submit_verification', { p_cnic: cnic.replace(/\D/g, ''), p_is_business: isBusiness, p_docs: paths });
-    if (error) await sb().storage.from(DOCS_BUCKET).remove(paths); // nothing to review: don't keep ID photos around
+  async submitVerification(userId, cnic, isBusiness, photos, cardRead) {
+    // No photos means the device already saw a clear mismatch: nothing is uploaded, the server just records it.
+    const paths = photos ? await uploadIdPhotos(userId, 'cnic', photos) : [];
+    const { data, error } = await sb().rpc('submit_verification', {
+      p_cnic: cnic.replace(/\D/g, ''),
+      p_is_business: isBusiness,
+      p_docs: paths,
+      p_read: cardRead,
+    });
+    // Nothing to review (error or automatic rejection): don't keep ID photos around.
+    if ((error || data === 'auto_rejected') && paths.length) await sb().storage.from(DOCS_BUCKET).remove(paths);
     fail(error);
     emitChange('profile');
+    return data === 'auto_rejected' ? 'auto_rejected' : 'pending';
   },
   async submitDriverVerification(userId, licence, expiry, photos) {
     const paths = await uploadIdPhotos(userId, 'licence', photos);

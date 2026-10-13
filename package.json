@@ -1,22 +1,23 @@
 {
   "name": "be-alert",
   "private": true,
-  "version": "3.9.0",
+  "version": "3.10.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "node scripts/copy-ocr.mjs && vite",
     "build": "vite build",
     "preview": "vite preview",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit -p tsconfig.app.json",
-    "build:pages": "vite build --mode pages && node scripts/spa-fallback.mjs && node scripts/prerender-legal.mjs pages",
+    "build:pages": "node scripts/copy-ocr.mjs && vite build --mode pages && node scripts/spa-fallback.mjs && node scripts/prerender-legal.mjs pages",
     "deploy:pages": "npm run build:pages && gh-pages -d dist --dotfiles -m \"Deploy Be Alert\"",
-    "build:android": "vite build --mode android && node -e \"require('fs').rmSync('dist/screenshots',{recursive:true,force:true})\" && cap sync android",
+    "build:android": "vite build --mode android && node -e \"for (const d of ['dist/screenshots','dist/ocr']) require('fs').rmSync(d,{recursive:true,force:true})\" && cap sync android",
     "apk": "npm run build:android && cd android && gradlew.bat assembleDebug",
     "icons": "node scripts/make-icons.mjs",
     "release": "npm run build:android && cd android && gradlew.bat bundleRelease assembleRelease"
   },
   "dependencies": {
+    "@aparajita/capacitor-secure-storage": "8.0.1",
     "@capacitor/android": "^8.5.2",
     "@capacitor/app": "^8.1.1",
     "@capacitor/browser": "^8.0.5",
@@ -33,12 +34,14 @@
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-leaflet": "^4.2.1",
-    "react-router-dom": "^7.18.4"
+    "react-router-dom": "^7.18.4",
+    "tesseract.js": "7.0.0"
   },
   "devDependencies": {
     "@capacitor/assets": "^3.0.5",
     "@capacitor/cli": "^8.5.2",
     "@eslint/js": "^9.9.1",
+    "@tesseract.js-data/eng": "1.0.0",
     "@types/leaflet": "^1.9.12",
     "@types/react": "^18.3.5",
     "@types/react-dom": "^18.3.0",

@@ -49,7 +49,7 @@ import { useDebounced, useQuery } from '@/lib/hooks';
 import { useRadar } from '@/lib/location-context';
 import { getCategory } from '@/lib/categories';
 import { cn, formatDate, formatDateTime, maskCnic, timeAgo } from '@/lib/format';
-import type { AdminOverview, AdminUser, AdminUserFilter, AppSettings, EmergencyContact, PostWithRelations, ProviderListing } from '@/lib/types';
+import type { AdminOverview, AdminUser, AdminUserFilter, AppSettings, EmergencyContact, PostWithRelations, ProviderListing, VerificationRequest } from '@/lib/types';
 import { CategoryBars, DailyBars } from './charts';
 import { RadiusSelect } from '@/components/radar/Pickers';
 
@@ -1125,6 +1125,7 @@ function Verification() {
                   </button>
                 </dd>
               </div>
+              <PhotoCheckRow check={r.photo_check} reveal={show} />
               <div className="flex justify-between gap-3">
                 <dt className="text-ink-3">Trust score</dt>
                 <dd className="font-semibold text-ink">{r.trust_score}</dd>
@@ -1752,6 +1753,27 @@ function SettingsAdmin() {
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+/** Result of the automatic check of the typed CNIC number against the number read from the card photo. */
+function PhotoCheckRow({ check, reveal }: { check: VerificationRequest['photo_check']; reveal: boolean }) {
+  const c = check?.check;
+  const read = check?.read;
+  const shown = read ? (reveal ? `${read.slice(0, 5)}-${read.slice(5, 12)}-${read.slice(12)}` : maskCnic(read)) : null;
+  const [tone, text] =
+    c === 'match'
+      ? ['text-success-600', 'Number on card matches']
+      : c === 'near'
+        ? ['text-warning-600', `Card reads ${shown} — ${check?.diff} digit${check?.diff === 1 ? '' : 's'} differ. Compare carefully`]
+        : c === 'unreadable'
+          ? ['text-warning-600', 'Number not readable on the photo — compare by eye']
+          : ['text-ink-3', 'Not checked (older app version)'];
+  return (
+    <div className="flex justify-between gap-3">
+      <dt className="shrink-0 text-ink-3">Photo check</dt>
+      <dd className={cn('text-right text-xs font-semibold', tone)}>{text}</dd>
     </div>
   );
 }

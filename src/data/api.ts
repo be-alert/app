@@ -69,8 +69,18 @@ export interface AuthApi {
   deleteMyAccount(): Promise<{ error: string | null }>;
   getProfile(userId: string): Promise<Profile | null>;
   updateProfile(userId: string, patch: ProfilePatch): Promise<void>;
-  /** CNIC verification: the number plus two photos (CNIC front, selfie holding it), kept private. */
-  submitVerification(userId: string, cnic: string, isBusiness: boolean, photos: VerificationPhotos): Promise<void>;
+  /**
+   * CNIC verification: the number plus two photos (CNIC front, selfie holding it), kept private.
+   * `cardRead` is the number read from the card photo on the device (null if unreadable). The server
+   * compares it with `cnic`: a clear mismatch is rejected straight away ('auto_rejected', photos not uploaded).
+   */
+  submitVerification(
+    userId: string,
+    cnic: string,
+    isBusiness: boolean,
+    photos: VerificationPhotos | null,
+    cardRead: string | null
+  ): Promise<'pending' | 'auto_rejected'>;
   /** Driving-licence check to offer rides: licence number, expiry (YYYY-MM-DD), licence photo + selfie. */
   submitDriverVerification(userId: string, licence: string, expiry: string, photos: VerificationPhotos): Promise<void>;
 }

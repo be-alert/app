@@ -69,7 +69,9 @@ export function PrivacyPolicy() {
             or shop deals, or to get a verified badge, your CNIC number, a photo of your CNIC (front) and a selfie
             holding it. They are stored privately and visible only to the app owner and admins for checking, never to other users. The photos are
             deleted as soon as your request is approved or rejected; we keep your CNIC number (to stop one CNIC verifying several accounts) and the
-            decision. Photos are resized on your device before upload, which removes hidden location data.</li>
+            decision. Photos are resized on your device before upload, which removes hidden location data. To catch mistakes and misuse, the app
+            reads the number printed on your CNIC photo <strong>on your own device</strong> (the photo is not sent to any other company for this)
+            and compares it with the number you typed; if they clearly don’t match, the request is rejected automatically.</li>
           <li><strong>Driving licence (only to offer rides):</strong> your licence number, its expiry date, a photo of the licence and a selfie
             holding it. Handled exactly like CNIC verification: private, seen only by the owner and admins, photos deleted once reviewed. Riders only
             see a “Verified driver” badge — never your licence details.</li>
@@ -174,7 +176,8 @@ export function TermsOfUse() {
           <li>Use your own email and keep access to it secure. You are responsible for activity on your account.</li>
           <li>Verified badges are given after checks and can be removed if information turns out to be false.</li>
           <li>To post services, tutoring, domestic help, rentals, jobs or shop deals you must first verify your CNIC; to offer rides you must add a valid
-            driving licence. Submitting someone else’s documents is not allowed and leads to removal.</li>
+            driving licence. Submitting someone else’s documents is not allowed and leads to removal. Requests where the typed CNIC number doesn’t
+            match the card are rejected automatically, and repeated rejected attempts are paused for 24 hours.</li>
         </ul>
       </section>
 

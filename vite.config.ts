@@ -49,7 +49,8 @@ function contentSecurityPolicy(mode: string): Plugin {
         const sb = supabase ? [supabase, supabase.replace(/^https:/, 'wss:')] : [];
         const policy = [
           "default-src 'self'",
-          `script-src 'self' ${inline.join(' ')} https://challenges.cloudflare.com https://accounts.google.com/gsi/client`,
+          // 'wasm-unsafe-eval' lets the on-device CNIC reader (WebAssembly OCR) run; it does not allow JS eval.
+          `script-src 'self' 'wasm-unsafe-eval' ${inline.join(' ')} https://challenges.cloudflare.com https://accounts.google.com/gsi/client`,
           "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://accounts.google.com/gsi/style",
           "font-src 'self' data: https://fonts.gstatic.com",
           `img-src 'self' data: blob: https://*.tile.openstreetmap.org ${supabase}`.trim(),
@@ -84,7 +85,7 @@ function webApp(mode: string) {
     manifest: false,
     workbox: {
       globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
-      globIgnores: ['**/screenshots/**', '**/icon-512.png', '**/maskable-512.png', '**/firebase-messaging-sw.js'],
+      globIgnores: ['**/screenshots/**', '**/ocr/**', '**/icon-512.png', '**/maskable-512.png', '**/firebase-messaging-sw.js'],
       navigateFallback: 'index.html',
       navigateFallbackDenylist: [/firebase-messaging-sw\.js$/],
       cleanupOutdatedCaches: true,

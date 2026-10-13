@@ -306,6 +306,8 @@ export interface VerificationRequest {
   requested_at: string;
   /** Private storage paths of the CNIC photo and selfie (removed once reviewed). */
   docs?: string[];
+  /** Automatic check of the typed number against the number read from the card photo. */
+  photo_check?: { check: 'match' | 'near' | 'unreadable'; read: string | null; diff: number | null } | null;
 }
 
 export interface AdminOverview {

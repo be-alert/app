@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   Bell,
+  AlertTriangle,
   BadgeCheck,
   Bookmark,
   Briefcase,
@@ -9,6 +10,7 @@ import {
   CarFront,
   Download,
   Eye,
+  Loader2,
   Lock,
   LogOut,
   MapPin,
@@ -40,6 +42,7 @@ import { CATEGORIES, getCategory } from '@/lib/categories';
 import { cn, formatCnic, formatDate, maskPhone, toE164PK, uid } from '@/lib/format';
 import { searchPlaces, type PlaceResult } from '@/services/maps';
 import { compressImage } from '@/data/images';
+import { checkCnic, readCnicNumber, warmUpCnicOcr, type CnicRead } from '@/lib/cnicOcr';
 import { isFirebaseConfigured, requestNotificationPermission } from '@/services/firebase';
 import type { Profile as ProfileT, WatchedArea } from '@/lib/types';
 
@@ -259,16 +262,68 @@ function VerificationSection({ profile }: { profile: ProfileT }) {
   const cnicValid = /^[1-7]\d{12}$/.test(cnicDigits);
   const ready = cnicValid && front && selfie;
 
+  // Read the number printed on the CNIC photo, on this device, as soon as the photo is added.
+  const [card, setCard] = useState<{ state: 'idle' | 'reading' | 'done' | 'failed'; read?: CnicRead }>({ state: 'idle' });
+  const [photoTries, setPhotoTries] = useState(0);
+  const reading = useRef<Promise<CnicRead | null> | null>(null);
+  useEffect(() => {
+    if (!front) {
+      setCard({ state: 'idle' });
+      reading.current = null;
+      return;
+    }
+    let alive = true;
+    setPhotoTries((n) => n + 1);
+    setCard({ state: 'reading' });
+    const job = readCnicNumber(front).then(
+      (r) => {
+        if (alive) setCard({ state: 'done', read: r });
+        return r;
+      },
+      () => {
+        if (alive) setCard({ state: 'failed' });
+        return null;
+      }
+    );
+    reading.current = job;
+    return () => {
+      alive = false;
+    };
+  }, [front]);
+  const photo = card.read && cnicValid ? checkCnic(cnicDigits, card.read) : null;
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!ready) return;
     setBusy(true);
     try {
-      await api.auth.submitVerification(profile.id, cnic, business, { front: front!, selfie: selfie! });
-      toast.success('Verification submitted', 'A moderator will check your photos, usually within 24 hours.');
+      const r = await reading.current;
+      // OCR couldn't run at all (offline / old phone): let a moderator compare by eye.
+      const result = r ? checkCnic(cnicDigits, r) : ({ check: 'unreadable', read: null } as const);
+      if (r && result.check === 'unreadable' && photoTries < 2) {
+        toast.error('We couldn’t read the number on your CNIC', 'Retake the photo flat, in good light, with no glare or fingers over the number.');
+        return;
+      }
+      if (result.check === 'near' && photoTries < 2) {
+        toast.error('The number doesn’t quite match your card', 'Check the number you typed, or retake a sharper photo of the card.');
+        return;
+      }
+      const outcome = await api.auth.submitVerification(
+        profile.id,
+        cnic,
+        business,
+        result.check === 'mismatch' ? null : { front: front!, selfie: selfie! },
+        result.read
+      );
+      if (outcome === 'auto_rejected') {
+        toast.error('Verification rejected', 'The CNIC number you typed doesn’t match the number on your card. Only your own CNIC can be used.');
+      } else {
+        toast.success('Verification submitted', 'A moderator will check your photos, usually within 24 hours.');
+      }
       setCnic('');
       setFront(null);
       setSelfie(null);
+      setPhotoTries(0);
     } catch (err) {
       toast.error('Could not submit', (err as Error).message);
     } finally {
@@ -311,13 +366,22 @@ function VerificationSection({ profile }: { profile: ProfileT }) {
           {v === 'expired' && <p className="rounded-xl bg-surface-2 px-3.5 py-2.5 text-[13px] text-ink-2">Your verification has expired — please re-submit.</p>}
           <div>
             <label className="label" htmlFor="cnic">CNIC number</label>
-            <input id="cnic" className="input tracking-wider" inputMode="numeric" placeholder="42101-1234567-1" value={cnic} onChange={(e) => setCnic(formatCnic(e.target.value))} />
+            <input
+              id="cnic"
+              className="input tracking-wider"
+              inputMode="numeric"
+              placeholder="42101-1234567-1"
+              value={cnic}
+              onFocus={warmUpCnicOcr}
+              onChange={(e) => setCnic(formatCnic(e.target.value))}
+            />
             {cnicDigits.length === 13 && !cnicValid && <p className="mt-1.5 text-xs font-medium text-danger-600">This doesn’t look like a valid CNIC number.</p>}
           </div>
           <div className="grid grid-cols-2 gap-3">
             <PhotoPick label="CNIC front" hint="All text readable, no glare" value={front} onChange={setFront} />
             <PhotoPick label="Selfie holding your CNIC" hint="Your face and the card visible" value={selfie} onChange={setSelfie} />
           </div>
+          <CardCheck state={card.state} photo={photo} cnicValid={cnicValid} />
           <p className="flex items-start gap-2 rounded-xl bg-surface-2 px-3.5 py-2.5 text-xs leading-relaxed text-ink-2">
             <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ink-3" />
             <span>
@@ -483,6 +547,50 @@ function DriverSection({ profile }: { profile: ProfileT }) {
 }
 
 /** Pick (or take) a photo; it's resized and re-encoded on the device, which also strips EXIF/location data. */
+/** Live result of reading the number on the CNIC photo. */
+function CardCheck({ state, photo, cnicValid }: { state: string; photo: ReturnType<typeof checkCnic> | null; cnicValid: boolean }) {
+  const box = 'flex items-start gap-2 rounded-xl px-3.5 py-2.5 text-[13px]';
+  if (state === 'reading')
+    return (
+      <p className={cn(box, 'bg-surface-2 text-ink-2')}>
+        <Loader2 className="mt-0.5 h-4 w-4 shrink-0 animate-spin" /> Checking the number on your CNIC photo… (on your phone — nothing is sent)
+      </p>
+    );
+  if (state === 'failed')
+    return <p className={cn(box, 'bg-surface-2 text-ink-2')}>Couldn’t check the photo automatically — a moderator will compare it by eye.</p>;
+  if (state !== 'done' || !cnicValid || !photo) return null;
+  if (photo.check === 'match')
+    return (
+      <p className={cn(box, 'bg-success-50 text-success-700 dark:bg-success-500/10 dark:text-success-500')}>
+        <BadgeCheck className="mt-0.5 h-4 w-4 shrink-0" /> The number on your card matches.
+      </p>
+    );
+  if (photo.check === 'unreadable')
+    return (
+      <p className={cn(box, 'bg-warning-50 text-warning-700 dark:bg-warning-500/10 dark:text-warning-500')}>
+        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" /> We couldn’t read the number on the card. Retake the photo flat, in good light, with no
+        glare or fingers over the number.
+      </p>
+    );
+  const shown = photo.read ? formatCnic(photo.read) : '';
+  if (photo.check === 'near')
+    return (
+      <p className={cn(box, 'bg-warning-50 text-warning-700 dark:bg-warning-500/10 dark:text-warning-500')}>
+        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" /> Your card seems to show <b className="mx-1 tracking-wider">{shown}</b>. Check the number you
+        typed, or retake a sharper photo.
+      </p>
+    );
+  return (
+    <p className={cn(box, 'bg-danger-50 text-danger-700 dark:bg-danger-500/10 dark:text-danger-400')}>
+      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+      <span>
+        The number on this card (<b className="tracking-wider">{shown}</b>) doesn’t match the number you typed. Use your own CNIC and type its number
+        exactly — <b>requests that don’t match are rejected automatically.</b>
+      </span>
+    </p>
+  );
+}
+
 function PhotoPick({ label, hint, value, onChange }: { label: string; hint: string; value: Blob | null; onChange(b: Blob | null): void }) {
   const toast = useToast();
   const input = useRef<HTMLInputElement>(null);

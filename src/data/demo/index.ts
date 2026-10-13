@@ -433,9 +433,16 @@ const auth: AuthApi = {
     save();
     emitChange('profile');
   },
-  async submitVerification(userId, cnic, isBusiness, photos) {
+  async submitVerification(userId, cnic, isBusiness, photos, cardRead) {
     const d = ensure();
     const u = need(d.users.find((x) => x.id === userId));
+    const typed = cnic.replace(/\D/g, '');
+    if (!photos || (cardRead && [...cardRead].filter((c, i) => c !== typed[i]).length > 2)) {
+      u.verification_status = 'rejected';
+      save();
+      emitChange('profile');
+      return 'auto_rejected';
+    }
     // Demo only: photos stay in this browser's memory (never stored or sent anywhere).
     demoPhotos.set(userId, await Promise.all([blobToDataUrl(photos.front), blobToDataUrl(photos.selfie)]));
     u.cnic_number = cnic.replace(/\D/g, '');
@@ -445,6 +452,7 @@ const auth: AuthApi = {
     if (d.profiles[userId]) d.profiles[userId].is_business = isBusiness;
     save();
     emitChange('profile');
+    return 'pending';
   },
 };
 

@@ -32,3 +32,6 @@ android/build/
 *.jks
 *.aab
 keystore.properties
+
+# OCR engine, copied from node_modules at build time (scripts/copy-ocr.mjs)
+public/ocr/

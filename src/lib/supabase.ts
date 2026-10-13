@@ -1,5 +1,37 @@
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient, type SupportedStorage } from '@supabase/supabase-js';
 import { ENV, isSupabaseConfigured } from '@/config/env';
+import { isNative } from './native';
+
+/**
+ * Android app: keep the sign-in session in the Android Keystore (encrypted, hardware-backed
+ * where available) instead of WebView localStorage. A session saved by an older app version
+ * is moved over once and deleted from localStorage.
+ */
+function keystoreStorage(): SupportedStorage {
+  const store = import('@aparajita/capacitor-secure-storage').then(async ({ SecureStorage }) => {
+    await SecureStorage.setKeyPrefix('bealert_');
+    return SecureStorage;
+  });
+  return {
+    async getItem(key) {
+      const s = await store;
+      const saved = await s.getItem(key);
+      if (saved !== null) return saved;
+      const legacy = window.localStorage.getItem(key);
+      if (legacy === null) return null;
+      await s.setItem(key, legacy);
+      window.localStorage.removeItem(key);
+      return legacy;
+    },
+    async setItem(key, value) {
+      await (await store).setItem(key, value);
+    },
+    async removeItem(key) {
+      await (await store).removeItem(key);
+      window.localStorage.removeItem(key);
+    },
+  };
+}
 
 let client: SupabaseClient | null = null;
 
@@ -14,7 +46,13 @@ export function getSupabase(): SupabaseClient | null {
     client = createClient(ENV.supabase.url!, ENV.supabase.anonKey!, {
       // PKCE: a sign-in link only works in the app/browser that asked for it, so a
       // crafted link can't silently log someone into another person's account.
-      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, flowType: 'pkce' },
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
+        flowType: 'pkce',
+        ...(isNative ? { storage: keystoreStorage() } : {}),
+      },
     });
   }
   return client;
