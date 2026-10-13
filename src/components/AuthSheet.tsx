@@ -125,6 +125,15 @@ export function AuthSheet() {
 
   async function submitPassword(e: React.FormEvent) {
     e.preventDefault();
+    try {
+      await submitPasswordInner();
+    } catch (err) {
+      setBusy(false);
+      setError(friendlyError((err as Error).message || 'Something went wrong. Please try again.'));
+    }
+  }
+
+  async function submitPasswordInner() {
     const to = checkEmail();
     if (!to) return;
     if (mode === 'signup' && password.length < MIN_PASSWORD) return setError(`Use at least ${MIN_PASSWORD} characters for your password.`);
@@ -153,12 +162,13 @@ export function AuthSheet() {
 
     const res = await signInWithPassword(to, password, token);
     if (res.unconfirmed) {
-      // Account was created but the email was never confirmed: send a fresh code.
-      const again = await resendSignupCode(to, await takeCaptcha());
+      // Account exists but the email isn't confirmed yet: ask for the code already sent
+      // (re-sending right away is refused by the server and looked like "too many attempts").
       setBusy(false);
-      if (again.error) return setError(friendlyError(again.error));
-      toast.info('Please confirm your email first — we sent you a new code.');
-      return goToCode(to, 'signup', again.devCode);
+      toast.info('Please confirm your email first', 'Enter the code we emailed you, or tap “Send a new code”.');
+      goToCode(to, 'signup');
+      setCooldown(0);
+      return;
     }
     if (res.error) {
       setBusy(false);

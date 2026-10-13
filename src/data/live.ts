@@ -10,7 +10,7 @@ import { compressImage } from './images';
 import { requireSupabase } from '@/lib/supabase';
 import { appUrl } from '@/config/env';
 import { APP_AUTH_CALLBACK, isNative } from '@/lib/native';
-import { GoogleCancelled, nativeGoogleSignIn } from '@/lib/googleSignIn';
+import { GoogleCancelled, forgetGoogleAccount, nativeGoogleSignIn } from '@/lib/googleSignIn';
 import { boundingBox } from '@/lib/location';
 import { uid } from '@/lib/format';
 import { DEFAULT_SETTINGS, type AppSettings } from '@/lib/types';
@@ -246,6 +246,7 @@ const auth: AuthApi = {
   },
   async signOut() {
     await sb().auth.signOut();
+    await forgetGoogleAccount();
   },
   async deleteMyAccount() {
     const { data } = await sb().auth.getUser();

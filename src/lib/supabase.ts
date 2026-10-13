@@ -8,13 +8,20 @@ import { isNative } from './native';
  * is moved over once and deleted from localStorage.
  */
 function keystoreStorage(): SupportedStorage {
-  const store = import('@aparajita/capacitor-secure-storage').then(async ({ SecureStorage }) => {
-    await SecureStorage.setKeyPrefix('bealert_');
-    return SecureStorage;
+  const timeout = <T,>(p: Promise<T>) => Promise.race([p, new Promise<never>((_, no) => setTimeout(() => no(new Error('keystore timeout')), 3000))]);
+  const store = timeout(
+    import('@aparajita/capacitor-secure-storage').then(async ({ SecureStorage }) => {
+      await SecureStorage.setKeyPrefix('bealert_');
+      return SecureStorage;
+    })
+  ).catch((e) => {
+    console.warn('[Be Alert] Keystore unavailable, using app storage', e);
+    return null;
   });
   return {
     async getItem(key) {
       const s = await store;
+      if (!s) return window.localStorage.getItem(key);
       const saved = await s.getItem(key);
       if (saved !== null) return saved;
       const legacy = window.localStorage.getItem(key);
@@ -24,10 +31,13 @@ function keystoreStorage(): SupportedStorage {
       return legacy;
     },
     async setItem(key, value) {
-      await (await store).setItem(key, value);
+      const s = await store;
+      if (!s) return window.localStorage.setItem(key, value);
+      await s.setItem(key, value);
     },
     async removeItem(key) {
-      await (await store).removeItem(key);
+      const s = await store;
+      if (s) await s.removeItem(key);
       window.localStorage.removeItem(key);
     },
   };

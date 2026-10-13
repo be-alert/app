@@ -54,13 +54,13 @@ export async function nativeGoogleSignIn(): Promise<GoogleCredential> {
   };
   const cancelled = (e: unknown) => /cancel/i.test(String((e as Error)?.message ?? e));
   try {
-    // The slide-up picker of accounts already on the phone…
-    return { idToken: await attempt('bottom'), nonce: nonce.raw };
+    // Google's full account chooser (all accounts + "Add another account"), so people can switch accounts.
+    return { idToken: await attempt('standard'), nonce: nonce.raw };
   } catch (e) {
     if (cancelled(e)) throw new GoogleCancelled();
-    // …or, when the phone has no Google account yet, Google's full sign-in screen.
+    // Fallback: the slide-up picker.
     try {
-      return { idToken: await attempt('standard'), nonce: nonce.raw };
+      return { idToken: await attempt('bottom'), nonce: nonce.raw };
     } catch (e2) {
       if (cancelled(e2)) throw new GoogleCancelled();
       throw e2;
@@ -74,6 +74,7 @@ interface GisId {
   initialize(o: Record<string, unknown>): void;
   renderButton(el: HTMLElement, o: Record<string, unknown>): void;
   cancel(): void;
+  disableAutoSelect?(): void;
 }
 declare global {
   interface Window {
@@ -127,3 +128,18 @@ export async function renderGoogleButton(el: HTMLElement, onCredential: (c: Goog
     width: Math.max(200, Math.min(400, Math.round(width))),
   });
 }
+
+/** On sign-out: forget the chosen Google account so the next sign-in offers the account list again. */
+export async function forgetGoogleAccount(): Promise<void> {
+  try {
+    if (isNative) {
+      const { SocialLogin } = await import('@capgo/capacitor-social-login');
+      await SocialLogin.logout({ provider: 'google' });
+    } else {
+      window.google?.accounts?.id?.disableAutoSelect?.();
+    }
+  } catch {
+    /* not signed in with Google */
+  }
+}
+
