@@ -55,7 +55,7 @@ export function AuthSheet() {
   const [busy, setBusy] = useState(false);
   const [cooldown, setCooldown] = useState(0);
   const codeRef = useRef<HTMLInputElement>(null);
-  const [captcha, setCaptcha] = useState<string | null>(null);
+  const captchaRef = useRef<string | null>(null);
   const [captchaReset, setCaptchaReset] = useState(0);
 
   useEffect(() => {
@@ -76,23 +76,26 @@ export function AuthSheet() {
     return () => clearTimeout(t);
   }, [cooldown]);
 
-  /** Validates the email (and captcha); returns the normalised address or null after showing an error. */
+  /** Validates the email; returns the normalised address or null after showing an error. */
   function checkEmail(): string | null {
     const to = email.trim().toLowerCase();
     if (!EMAIL_RE.test(to)) {
       setError('Enter a valid email address, e.g. yourname@gmail.com');
       return null;
     }
-    if (captchaEnabled && !captcha) {
-      setError('Please wait a moment while we check you’re not a robot, then try again.');
-      return null;
-    }
     return to;
   }
 
-  function takeCaptcha() {
-    const token = captcha ?? undefined;
-    setCaptchaReset((n) => n + 1); // tokens are single-use
+  /**
+   * A fresh bot-check token for one request. Tokens are single-use and a new one takes a moment
+   * to arrive after each use, so wait for it (up to 10 s) instead of failing a quick second tap.
+   */
+  async function takeCaptcha(): Promise<string | undefined> {
+    if (!captchaEnabled) return undefined;
+    for (let i = 0; i < 40 && !captchaRef.current; i++) await new Promise((r) => setTimeout(r, 250));
+    const token = captchaRef.current ?? undefined;
+    captchaRef.current = null;
+    setCaptchaReset((n) => n + 1);
     return token;
   }
 
@@ -128,7 +131,7 @@ export function AuthSheet() {
     if (!password) return setError('Enter your password.');
     setBusy(true);
     setError(null);
-    const token = takeCaptcha();
+    const token = await takeCaptcha();
 
     if (mode === 'signup') {
       const res = await signUpWithPassword(to, password, token);
@@ -151,7 +154,7 @@ export function AuthSheet() {
     const res = await signInWithPassword(to, password, token);
     if (res.unconfirmed) {
       // Account was created but the email was never confirmed: send a fresh code.
-      const again = await resendSignupCode(to, takeCaptcha());
+      const again = await resendSignupCode(to, await takeCaptcha());
       setBusy(false);
       if (again.error) return setError(friendlyError(again.error));
       toast.info('Please confirm your email first — we sent you a new code.');
@@ -168,7 +171,7 @@ export function AuthSheet() {
   async function google() {
     setBusy(true);
     setError(null);
-    const res = await signInWithGoogle(takeCaptcha());
+    const res = await signInWithGoogle(await takeCaptcha());
     if (res.error || res.cancelled) {
       setBusy(false);
       if (res.error) setError(googleError(res.error));
@@ -181,7 +184,7 @@ export function AuthSheet() {
   async function googleToken(c: GoogleCredential) {
     setBusy(true);
     setError(null);
-    const res = await signInWithGoogleToken(c.idToken, c.nonce, takeCaptcha());
+    const res = await signInWithGoogleToken(c.idToken, c.nonce, await takeCaptcha());
     if (res.error) {
       setBusy(false);
       return setError(googleError(res.error));
@@ -189,12 +192,13 @@ export function AuthSheet() {
     return finish();
   }
 
-  async function sendLoginCode() {
-    const to = checkEmail();
+  /** Email a sign-in code (creates the account if the email is new). `address` skips the form check. */
+  async function sendLoginCode(address?: string) {
+    const to = address ?? checkEmail();
     if (!to) return;
     setBusy(true);
     setError(null);
-    const res = await sendEmailOtp(to, takeCaptcha());
+    const res = await sendEmailOtp(to, await takeCaptcha());
     setBusy(false);
     if (res.error) return setError(friendlyError(res.error));
     goToCode(to, 'email', res.devCode);
@@ -205,7 +209,7 @@ export function AuthSheet() {
     if (!to) return;
     setBusy(true);
     setError(null);
-    const res = await sendPasswordReset(to, takeCaptcha());
+    const res = await sendPasswordReset(to, await takeCaptcha());
     setBusy(false);
     if (res.error) return setError(friendlyError(res.error));
     goToCode(to, 'recovery', res.devCode);
@@ -216,10 +220,10 @@ export function AuthSheet() {
     setError(null);
     const res =
       codeKind === 'signup'
-        ? await resendSignupCode(target, takeCaptcha())
+        ? await resendSignupCode(target, await takeCaptcha())
         : codeKind === 'recovery'
-          ? await sendPasswordReset(target, takeCaptcha())
-          : await sendEmailOtp(target, takeCaptcha());
+          ? await sendPasswordReset(target, await takeCaptcha())
+          : await sendEmailOtp(target, await takeCaptcha());
     setBusy(false);
     if (res.error) return setError(friendlyError(res.error));
     setDevCode(res.devCode);
@@ -232,7 +236,7 @@ export function AuthSheet() {
     if (code.length < MIN_CODE) return;
     setBusy(true);
     setError(null);
-    const res = await verifyEmailOtp(target, code, codeKind, takeCaptcha());
+    const res = await verifyEmailOtp(target, code, codeKind, await takeCaptcha());
     if (res.error) {
       setBusy(false);
       setError(friendlyError(res.error));
@@ -371,7 +375,7 @@ export function AuthSheet() {
             <div className="my-4 flex items-center gap-3 text-xs font-semibold text-ink-3">
               <span className="h-px flex-1 bg-line" /> or <span className="h-px flex-1 bg-line" />
             </div>
-            <button type="button" className="btn-secondary w-full" onClick={sendLoginCode} disabled={busy || !email.includes('@')}>
+            <button type="button" className="btn-secondary w-full" onClick={() => void sendLoginCode()} disabled={busy || !email.includes('@')}>
               <Mail className="h-4 w-4" /> Email me a 6-digit code instead
             </button>
             <p className="mt-2 text-center text-xs text-ink-3">No password needed — read the code on any device and type it here.</p>
@@ -386,10 +390,18 @@ export function AuthSheet() {
         {step === 'code' && (
           <form onSubmit={submitCode}>
             <h2 className="text-xl font-extrabold tracking-tight text-ink">{codeTitle}</h2>
-            <p className="mt-1.5 text-sm text-ink-2">
-              We emailed a code to <span className="font-semibold text-ink">{target}</span>. Open the email on any device — phone or
-              computer — and type the code here. Check your spam folder too.
-            </p>
+            {codeKind === 'recovery' ? (
+              <p className="mt-1.5 text-sm text-ink-2">
+                If <span className="font-semibold text-ink">{target}</span> has a Be Alert account, we’ve emailed it a code. Type the code here —
+                it can take a minute, so check your spam folder too.
+              </p>
+            ) : (
+              <p className="mt-1.5 text-sm text-ink-2">
+                We emailed a code to <span className="font-semibold text-ink">{target}</span>. Open the email on any device — phone or computer —
+                and type the code here. Check your spam folder too.
+                {codeKind === 'email' && ' New to Be Alert? Entering the code creates your account.'}
+              </p>
+            )}
             {devCode && (
               <div className="mt-4 rounded-xl border border-dashed border-warning-500/50 bg-warning-50 px-3.5 py-2.5 text-[13px] text-warning-700 dark:bg-warning-500/10 dark:text-warning-500">
                 Demo mode — nothing is actually sent. Use code <b className="tracking-widest">{devCode}</b>
@@ -413,6 +425,23 @@ export function AuthSheet() {
             <button type="button" className="btn-ghost mt-2 w-full" disabled={cooldown > 0 || busy} onClick={resend}>
               {cooldown > 0 ? `Send a new code in ${cooldown}s` : 'Send a new code'}
             </button>
+            {codeKind === 'recovery' && (
+              <div className="mt-4 rounded-xl bg-surface-2 px-3.5 py-3 text-[13px] text-ink-2">
+                <p className="font-semibold text-ink">No email?</p>
+                <p className="mt-1">
+                  For your privacy we don’t say whether an email is registered. If you never created an account with this email — or you
+                  always used “Continue with Google” — there is no password to reset:
+                </p>
+                <div className="mt-2.5 flex flex-wrap gap-2">
+                  <button type="button" className="btn-secondary btn-sm" disabled={busy} onClick={() => void sendLoginCode(target)}>
+                    Email me a sign-in code
+                  </button>
+                  <button type="button" className="btn-secondary btn-sm" onClick={() => { setMode('signup'); setStep('start'); setError(null); }}>
+                    Create an account
+                  </button>
+                </div>
+              </div>
+            )}
           </form>
         )}
 
@@ -450,7 +479,7 @@ export function AuthSheet() {
             </button>
           </form>
         )}
-        {(step === 'start' || step === 'code') && <Turnstile onToken={setCaptcha} resetKey={captchaReset} className="mt-4 flex justify-center" />}
+        {(step === 'start' || step === 'code') && <Turnstile onToken={(t) => (captchaRef.current = t)} resetKey={captchaReset} className="mt-4 flex justify-center" />}
         <p className="mt-5 text-center text-xs text-ink-3">
           By continuing you agree to our{' '}
           <Link to="/terms" onClick={() => closeAuthPrompt(false)} className="font-semibold underline">Terms</Link> and{' '}
@@ -512,13 +541,20 @@ function googleError(msg: string): string {
 }
 
 function friendlyError(msg: string): string {
-  if (/invalid login credentials/i.test(msg)) return 'Wrong email or password. Try again, or tap “Forgot password?”.';
+  // Checked first: the bot-check error mentions a "token", which must not read as a wrong code.
+  if (/captcha/i.test(msg)) return 'Security check didn’t finish. Please wait a few seconds and try again.';
+  if (/invalid login credentials/i.test(msg))
+    return 'Wrong email or password. Try again, tap “Forgot password?”, or use “Continue with Google” if that’s how you joined.';
+  if (/already registered|already been registered|already exists/i.test(msg))
+    return 'An account with this email already exists. Sign in instead — or tap “Forgot password?” if you don’t remember it.';
+  if (/email address|invalid format|validate email/i.test(msg)) return 'Enter a valid email address, e.g. yourname@gmail.com';
+  if (/not confirmed/i.test(msg)) return 'Please confirm your email first — use the code we sent you.';
+  if (/sending.*email|smtp|error sending/i.test(msg)) return 'We couldn’t send the email just now. Please try again in a minute.';
   if (/rate limit|too many|seconds/i.test(msg)) return 'Too many attempts. Please wait a minute and try again.';
   if (/weak|pwned|password should/i.test(msg)) return 'Please choose a stronger password — mix letters, numbers and symbols.';
   if (/same.*password|different from the old/i.test(msg)) return 'Your new password must be different from the old one.';
   if (/expired|invalid|token/i.test(msg)) return 'That code is wrong or has expired. Tap “Send a new code”.';
   if (/signups? not allowed|disabled/i.test(msg)) return 'New accounts are paused right now. Please try again later.';
-  if (/captcha/i.test(msg)) return 'Security check failed. Please try again.';
   if (/provider is not enabled|unsupported provider/i.test(msg)) return 'Google sign-in isn’t switched on yet. Please use your email for now.';
   if (/fetch|network/i.test(msg)) return 'No internet connection. Check your connection and try again.';
   return msg;

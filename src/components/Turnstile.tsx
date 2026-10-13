@@ -55,7 +55,12 @@ export function Turnstile({ onToken, resetKey = 0, className }: { onToken(token:
           appearance: 'interaction-only',
           callback: (t: string) => cb.current(t),
           'expired-callback': () => cb.current(null),
-          'error-callback': () => cb.current(null),
+          'error-callback': () => {
+            cb.current(null);
+            // Network hiccup or blocked challenge: try again shortly instead of staying stuck.
+            setTimeout(() => widget.current && window.turnstile?.reset(widget.current), 2500);
+            return true;
+          },
         });
       })
       .catch(() => cb.current(null));
