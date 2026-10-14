@@ -10,7 +10,7 @@ import { compressImage } from './images';
 import { requireSupabase } from '@/lib/supabase';
 import { appUrl } from '@/config/env';
 import { APP_AUTH_CALLBACK, isNative } from '@/lib/native';
-import { GoogleCancelled, forgetGoogleAccount, nativeGoogleSignIn } from '@/lib/googleSignIn';
+import { GoogleCancelled, forgetGoogleAccount, nativeGoogleSignIn, webGoogleSignIn } from '@/lib/googleSignIn';
 import { boundingBox } from '@/lib/location';
 import { uid } from '@/lib/format';
 import { DEFAULT_SETTINGS, type AppSettings } from '@/lib/types';
@@ -221,10 +221,11 @@ const auth: AuthApi = {
     const { error } = await sb().auth.updateUser({ password });
     return { error: error?.message ?? null };
   },
-  async signInWithGoogle(captchaToken) {
+  async signInWithGoogle(getCaptcha) {
     try {
-      const { idToken, nonce } = await nativeGoogleSignIn();
-      return await auth.signInWithGoogleToken(idToken, nonce, captchaToken);
+      // Opens the chooser first (synchronously on the web, so the pop-up isn't blocked).
+      const { idToken, nonce } = await (isNative ? nativeGoogleSignIn() : webGoogleSignIn());
+      return await auth.signInWithGoogleToken(idToken, nonce, await getCaptcha?.());
     } catch (e) {
       if (e instanceof GoogleCancelled) return { error: null, cancelled: true };
       return { error: (e as Error).message || 'Could not sign in with Google.' };

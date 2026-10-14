@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="robots" content="noindex" />
+<title>Signing in… — Be Alert</title>
+<style>body{font-family:system-ui,sans-serif;display:grid;place-items:center;min-height:90vh;color:#334;margin:0}</style>
+</head>
+<body>
+<p>Signing in to Be Alert…</p>
+<script>
+  // Google sends the sign-in result here (in the URL fragment, never to a server).
+  // Hand it to the Be Alert tab that opened this window, then close.
+  (function () {
+    var p = new URLSearchParams(location.hash.slice(1));
+    history.replaceState(null, '', location.pathname); // drop the token from the address bar
+    var msg = { type: 'be-alert-google', id_token: p.get('id_token'), state: p.get('state'), error: p.get('error') };
+    try { new BroadcastChannel('be-alert-google').postMessage(msg); } catch (e) {}
+    try { localStorage.setItem('be-alert-google', JSON.stringify(msg)); } catch (e) {}
+    setTimeout(function () { window.close(); }, 400);
+  })();
+</script>
+</body>
+</html>

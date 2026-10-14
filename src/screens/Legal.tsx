@@ -259,7 +259,7 @@ export function DeleteAccount() {
         <ul>
           <li><strong>In the Android app or web app:</strong> open Profile → Privacy &amp; data → Delete my account, type DELETE and confirm.</li>
           <li><strong>On this page:</strong> sign in below and press “Delete my account”.</li>
-          <li><strong>Forgot your password?</strong> Choose “Email me a 6-digit code instead” when signing in — you don’t need your password.</li>
+          <li><strong>Forgot your password?</strong> Tap “Forgot password?” on the sign-in screen — we’ll email you a code to set a new one. If you joined with Google, just use “Continue with Google”.</li>
         </ul>
       </section>
 

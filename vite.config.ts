@@ -50,13 +50,12 @@ function contentSecurityPolicy(mode: string): Plugin {
         const policy = [
           "default-src 'self'",
           // 'wasm-unsafe-eval' lets the on-device CNIC reader (WebAssembly OCR) run; it does not allow JS eval.
-          `script-src 'self' 'wasm-unsafe-eval' ${inline.join(' ')} https://challenges.cloudflare.com https://accounts.google.com/gsi/client`,
-          "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://accounts.google.com/gsi/style",
+          `script-src 'self' 'wasm-unsafe-eval' ${inline.join(' ')} https://challenges.cloudflare.com`,
+          "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
           "font-src 'self' data: https://fonts.gstatic.com",
           `img-src 'self' data: blob: https://*.tile.openstreetmap.org ${supabase}`.trim(),
-          `connect-src 'self' ${sb.join(' ')} https://nominatim.openstreetmap.org https://*.googleapis.com https://challenges.cloudflare.com https://accounts.google.com/gsi/`,
-          // Google's sign-in button and account chooser live in accounts.google.com frames.
-          'frame-src https://challenges.cloudflare.com https://accounts.google.com/gsi/',
+          `connect-src 'self' ${sb.join(' ')} https://nominatim.openstreetmap.org https://*.googleapis.com https://challenges.cloudflare.com`,
+          'frame-src https://challenges.cloudflare.com',
           "worker-src 'self' blob:",
           "manifest-src 'self'",
           "object-src 'none'",
@@ -85,10 +84,14 @@ function webApp(mode: string) {
     manifest: false,
     workbox: {
       globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
-      globIgnores: ['**/screenshots/**', '**/ocr/**', '**/icon-512.png', '**/maskable-512.png', '**/firebase-messaging-sw.js'],
+      globIgnores: ['**/screenshots/**', '**/ocr/**', '**/google-callback.html', '**/icon-512.png', '**/maskable-512.png', '**/firebase-messaging-sw.js'],
       navigateFallback: 'index.html',
-      navigateFallbackDenylist: [/firebase-messaging-sw\.js$/],
+      navigateFallbackDenylist: [/firebase-messaging-sw\.js$/, /google-callback\.html$/],
       cleanupOutdatedCaches: true,
+      // A new version takes over the cache straight away (no reload): pages already open keep
+      // running, but every new page load — and the Google sign-in return page — gets the latest files.
+      skipWaiting: true,
+      clientsClaim: true,
       // Personal data (Supabase API) is never cached — only public, shared resources.
       runtimeCaching: [
         {

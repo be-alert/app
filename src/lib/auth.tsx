@@ -133,7 +133,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       sendPasswordReset: (e, t) => api.auth.sendPasswordReset(e, t),
       updatePassword: (pw) => api.auth.updatePassword(pw),
       adminSignIn: (e, pw, t) => api.auth.adminSignIn(e, pw, t),
-      signInWithGoogle: (c) => api.auth.signInWithGoogle(c),
+      signInWithGoogle: (getCaptcha) => api.auth.signInWithGoogle(getCaptcha),
       signInWithGoogleToken: (t, n, c) => api.auth.signInWithGoogleToken(t, n, c),
       signOut: async () => {
         await api.auth.signOut();

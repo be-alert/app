@@ -7,8 +7,6 @@ import { useApi } from '@/data';
 import type { EmailCodeKind } from '@/data/api';
 import { Turnstile, captchaEnabled } from '@/components/Turnstile';
 import { cn } from '@/lib/format';
-import { isNative } from '@/lib/native';
-import { renderGoogleButton, type GoogleCredential } from '@/lib/googleSignIn';
 
 type Mode = 'signin' | 'signup';
 type Step = 'start' | 'code' | 'newPassword' | 'name';
@@ -20,7 +18,7 @@ const MIN_CODE = 6;
 const MAX_CODE = 10;
 
 /**
- * Sign in / create account with email + password, or with a 6-digit code emailed to the user.
+ * Sign in / create account with email + password (or Google). A 6-digit code is emailed to confirm a new account or reset a password.
  * Every email carries a code (never only a link), so the user can read it on any device
  * and type it here.
  */
@@ -36,7 +34,6 @@ export function AuthSheet() {
     sendPasswordReset,
     updatePassword,
     signInWithGoogle,
-    signInWithGoogleToken,
   } = useAuth();
   const api = useApi();
   const toast = useToast();
@@ -177,41 +174,17 @@ export function AuthSheet() {
     return finish();
   }
 
-  /** Android: Google's account picker slides up inside the app. */
+  /** Google's account chooser (pop-up on the web, native on Android) — always lists every account. */
   async function google() {
     setBusy(true);
     setError(null);
-    const res = await signInWithGoogle(await takeCaptcha());
+    const res = await signInWithGoogle(takeCaptcha);
     if (res.error || res.cancelled) {
       setBusy(false);
       if (res.error) setError(googleError(res.error));
       return;
     }
     return finish();
-  }
-
-  /** Web: Google's own button handed us a token. */
-  async function googleToken(c: GoogleCredential) {
-    setBusy(true);
-    setError(null);
-    const res = await signInWithGoogleToken(c.idToken, c.nonce, await takeCaptcha());
-    if (res.error) {
-      setBusy(false);
-      return setError(googleError(res.error));
-    }
-    return finish();
-  }
-
-  /** Email a sign-in code (creates the account if the email is new). `address` skips the form check. */
-  async function sendLoginCode(address?: string) {
-    const to = address ?? checkEmail();
-    if (!to) return;
-    setBusy(true);
-    setError(null);
-    const res = await sendEmailOtp(to, await takeCaptcha());
-    setBusy(false);
-    if (res.error) return setError(friendlyError(res.error));
-    goToCode(to, 'email', res.devCode);
   }
 
   async function forgotPassword() {
@@ -307,13 +280,9 @@ export function AuthSheet() {
             <h2 className="text-xl font-extrabold tracking-tight text-ink">{mode === 'signup' ? 'Create your Be Alert account' : 'Sign in to Be Alert'}</h2>
             <p className="mt-1.5 text-sm text-ink-2">{authPrompt.reason ?? 'Post, vote and connect with neighbours.'}</p>
 
-            {isNative ? (
-              <button type="button" onClick={google} disabled={busy} className="btn-secondary mt-5 h-12 w-full gap-3 text-[15px]">
-                <GoogleLogo /> Continue with Google
-              </button>
-            ) : (
-              <GoogleWebButton onCredential={googleToken} onError={(m) => setError(m)} />
-            )}
+            <button type="button" onClick={() => void google()} disabled={busy} className="btn-secondary mt-5 h-12 w-full gap-3 text-[15px]">
+              <GoogleLogo /> Continue with Google
+            </button>
             <div className="my-4 flex items-center gap-3 text-xs font-semibold text-ink-3">
               <span className="h-px flex-1 bg-line" /> or use your email <span className="h-px flex-1 bg-line" />
             </div>
@@ -382,13 +351,9 @@ export function AuthSheet() {
               {busy ? 'Please wait…' : mode === 'signup' ? 'Create account' : 'Sign in'}
             </button>
 
-            <div className="my-4 flex items-center gap-3 text-xs font-semibold text-ink-3">
-              <span className="h-px flex-1 bg-line" /> or <span className="h-px flex-1 bg-line" />
-            </div>
-            <button type="button" className="btn-secondary w-full" onClick={() => void sendLoginCode()} disabled={busy || !email.includes('@')}>
-              <Mail className="h-4 w-4" /> Email me a 6-digit code instead
-            </button>
-            <p className="mt-2 text-center text-xs text-ink-3">No password needed — read the code on any device and type it here.</p>
+            {mode === 'signup' && (
+              <p className="mt-2 text-center text-xs text-ink-3">We’ll email you a 6-digit code to confirm it’s your address.</p>
+            )}
 
             <p className="mt-4 flex items-start gap-2 text-xs text-ink-3">
               <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0" />
@@ -409,7 +374,6 @@ export function AuthSheet() {
               <p className="mt-1.5 text-sm text-ink-2">
                 We emailed a code to <span className="font-semibold text-ink">{target}</span>. Open the email on any device — phone or computer —
                 and type the code here. Check your spam folder too.
-                {codeKind === 'email' && ' New to Be Alert? Entering the code creates your account.'}
               </p>
             )}
             {devCode && (
@@ -439,13 +403,10 @@ export function AuthSheet() {
               <div className="mt-4 rounded-xl bg-surface-2 px-3.5 py-3 text-[13px] text-ink-2">
                 <p className="font-semibold text-ink">No email?</p>
                 <p className="mt-1">
-                  For your privacy we don’t say whether an email is registered. If you never created an account with this email — or you
-                  always used “Continue with Google” — there is no password to reset:
+                  For your privacy we don’t say whether an email is registered. If you never created an account with this email, there’s no
+                  password to reset. If you joined with “Continue with Google”, just sign in with Google.
                 </p>
                 <div className="mt-2.5 flex flex-wrap gap-2">
-                  <button type="button" className="btn-secondary btn-sm" disabled={busy} onClick={() => void sendLoginCode(target)}>
-                    Email me a sign-in code
-                  </button>
                   <button type="button" className="btn-secondary btn-sm" onClick={() => { setMode('signup'); setStep('start'); setError(null); }}>
                     Create an account
                   </button>
@@ -497,35 +458,6 @@ export function AuthSheet() {
         </p>
       </div>
     </Sheet>
-  );
-}
-
-/** Google's official button (Google Identity Services). Falls back to a note if Google can't load. */
-function GoogleWebButton({ onCredential, onError }: { onCredential: (c: GoogleCredential) => void; onError: (msg: string) => void }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const cb = useRef(onCredential);
-  cb.current = onCredential;
-  const err = useRef(onError);
-  err.current = onError;
-  const [failed, setFailed] = useState(false);
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    let alive = true;
-    renderGoogleButton(el, (c) => cb.current(c), el.clientWidth || 320).catch((e: Error) => {
-      if (!alive) return;
-      setFailed(true);
-      err.current(e.message);
-    });
-    return () => {
-      alive = false;
-    };
-  }, []);
-  return (
-    <div className="mt-5">
-      <div ref={ref} className="flex h-11 w-full justify-center" aria-label="Continue with Google" />
-      {failed && <p className="mt-1 text-center text-xs text-ink-3">Google sign-in is unavailable right now — use your email below.</p>}
-    </div>
   );
 }
 

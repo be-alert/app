@@ -7,11 +7,11 @@ import {
   Bookmark,
   Briefcase,
   Camera,
+  Clock,
   CarFront,
   Download,
   Eye,
   Loader2,
-  Lock,
   LogOut,
   MapPin,
   Moon,
@@ -318,7 +318,7 @@ function VerificationSection({ profile }: { profile: ProfileT }) {
       if (outcome === 'auto_rejected') {
         toast.error('Verification rejected', 'The CNIC number you typed doesn’t match the number on your card. Only your own CNIC can be used.');
       } else {
-        toast.success('Verification submitted', 'A moderator will check your photos, usually within 24 hours.');
+        toast.success('Request submitted', 'Your request is under review. You’ll hear back within 24 hours.');
       }
       setCnic('');
       setFront(null);
@@ -350,9 +350,12 @@ function VerificationSection({ profile }: { profile: ProfileT }) {
           </div>
         </div>
       ) : status === 'pending' ? (
-        <div className="rounded-2xl bg-warning-50 p-4 text-[13px] text-warning-700 dark:bg-warning-500/10 dark:text-warning-500">
-          <b>Under review.</b> A moderator is checking your CNIC and photos. You’ll get your badge as soon as it’s approved — and your photos are
-          deleted right after the review.
+        <div className="flex items-start gap-3 rounded-2xl bg-warning-50 p-4 text-warning-700 dark:bg-warning-500/10 dark:text-warning-500">
+          <Clock className="mt-0.5 h-5 w-5 shrink-0" />
+          <div>
+            <p className="font-bold">Your request is under review</p>
+            <p className="mt-0.5 text-[13px]">We’re checking your CNIC details. You’ll hear back within 24 hours.</p>
+          </div>
         </div>
       ) : (
         <form onSubmit={submit} className="space-y-3">
@@ -382,13 +385,6 @@ function VerificationSection({ profile }: { profile: ProfileT }) {
             <PhotoPick label="Selfie holding your CNIC" hint="Your face and the card visible" value={selfie} onChange={setSelfie} />
           </div>
           <CardCheck state={card.state} photo={photo} cnicValid={cnicValid} />
-          <p className="flex items-start gap-2 rounded-xl bg-surface-2 px-3.5 py-2.5 text-xs leading-relaxed text-ink-2">
-            <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ink-3" />
-            <span>
-              Private: only Be Alert moderators can see your CNIC and photos — never other users. The photos are <b>deleted as soon as your
-              request is reviewed</b>. Your CNIC number stays private on file so it can’t be used to verify another account.
-            </span>
-          </p>
           <label className="flex items-center justify-between gap-3 rounded-xl border border-line px-3.5 py-3">
             <span>
               <span className="block text-sm font-semibold text-ink">I’m a business / service provider</span>
@@ -480,7 +476,7 @@ function DriverSection({ profile }: { profile: ProfileT }) {
     setBusy(true);
     try {
       await api.auth.submitDriverVerification(profile.id, licence.trim(), expiry, { front: front!, selfie: selfie! });
-      toast.success('Licence submitted', 'A moderator will check it, usually within 24 hours.');
+      toast.success('Request submitted', 'Your licence is under review. You’ll hear back within 24 hours.');
       setLicence('');
       setExpiry('');
       setFront(null);
@@ -503,8 +499,12 @@ function DriverSection({ profile }: { profile: ProfileT }) {
           </div>
         </div>
       ) : status === 'pending' ? (
-        <div className="rounded-2xl bg-warning-50 p-4 text-[13px] text-warning-700 dark:bg-warning-500/10 dark:text-warning-500">
-          <b>Under review.</b> A moderator is checking your licence. You can offer rides as soon as it’s approved — your photos are deleted right after.
+        <div className="flex items-start gap-3 rounded-2xl bg-warning-50 p-4 text-warning-700 dark:bg-warning-500/10 dark:text-warning-500">
+          <Clock className="mt-0.5 h-5 w-5 shrink-0" />
+          <div>
+            <p className="font-bold">Your request is under review</p>
+            <p className="mt-0.5 text-[13px]">We’re checking your driving licence. You’ll hear back within 24 hours.</p>
+          </div>
         </div>
       ) : (
         <form onSubmit={submit} className="space-y-3">
@@ -530,13 +530,6 @@ function DriverSection({ profile }: { profile: ProfileT }) {
             <PhotoPick label="Driving licence (front)" hint="Name, photo and dates readable" value={front} onChange={setFront} />
             <PhotoPick label="Selfie holding your licence" hint="Your face and the card visible" value={selfie} onChange={setSelfie} />
           </div>
-          <p className="flex items-start gap-2 rounded-xl bg-surface-2 px-3.5 py-2.5 text-xs leading-relaxed text-ink-2">
-            <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ink-3" />
-            <span>
-              Private: only Be Alert moderators see your licence and photos. The photos are <b>deleted as soon as it’s reviewed</b>; your badge ends
-              when the licence expires (at most 1 year), then you renew it here.
-            </span>
-          </p>
           <button className="btn-primary w-full sm:w-auto" disabled={busy || !ready}>
             {busy ? 'Uploading securely…' : 'Submit licence'}
           </button>
@@ -553,7 +546,7 @@ function CardCheck({ state, photo, cnicValid }: { state: string; photo: ReturnTy
   if (state === 'reading')
     return (
       <p className={cn(box, 'bg-surface-2 text-ink-2')}>
-        <Loader2 className="mt-0.5 h-4 w-4 shrink-0 animate-spin" /> Checking the number on your CNIC photo… (on your phone — nothing is sent)
+        <Loader2 className="mt-0.5 h-4 w-4 shrink-0 animate-spin" /> Checking the number on your CNIC photo…
       </p>
     );
   if (state === 'failed')

@@ -59,8 +59,11 @@ export interface AuthApi {
   sendPasswordReset(email: string, captchaToken?: string): Promise<{ error: string | null; devCode?: string }>;
   /** Sets a new password for the signed-in user (after a reset code, or from settings). */
   updatePassword(password: string): Promise<{ error: string | null }>;
-  /** Android: shows Google's account picker and signs in. (The web uses Google's button → signInWithGoogleToken.) */
-  signInWithGoogle(captchaToken?: string): Promise<{ error: string | null; cancelled?: boolean }>;
+  /**
+   * Shows Google's account chooser (pop-up on the web, native on Android) and signs in.
+   * Call it straight from a click; `getCaptcha` is only awaited after the chooser has opened.
+   */
+  signInWithGoogle(getCaptcha?: () => Promise<string | undefined>): Promise<{ error: string | null; cancelled?: boolean }>;
   /** Signs in with an ID token from Google (nonce = the raw value whose hash Google signed). */
   signInWithGoogleToken(idToken: string, nonce: string, captchaToken?: string): Promise<{ error: string | null }>;
   adminSignIn(email: string, password: string, captchaToken?: string): Promise<{ error: string | null }>;

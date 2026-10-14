@@ -1,14 +1,14 @@
 /**
  * "Continue with Google" without leaving Be Alert.
  *
- * Google gives us an ID token directly (Google's own button on the web, the native account
- * picker on Android) and we hand it to Supabase with signInWithIdToken. Nothing goes through
+ * Google gives us an ID token directly (an account-chooser pop-up on the web, the native account
+ * chooser on Android) and we hand it to Supabase with signInWithIdToken. Nothing goes through
  * the Supabase project address, so Google's screen names bealert.online / Be Alert.
  *
  * Replay protection: Google signs a SHA-256 hash of a one-time nonce into the token and
  * Supabase checks it against the raw nonce we send alongside.
  */
-import { ENV } from '@/config/env';
+import { BASE_PATH, ENV } from '@/config/env';
 import { isNative } from './native';
 
 export const googleClientId = ENV.googleClientId;
@@ -68,64 +68,86 @@ export async function nativeGoogleSignIn(): Promise<GoogleCredential> {
   }
 }
 
-// ── Web: Google Identity Services button ──
+// ── Web: Google's account chooser in a pop-up ──
+//
+// Always shows the full list of Google accounts (prompt=select_account) so people can switch
+// accounts after signing out. Google returns an ID token to /google-callback.html on our own
+// domain, which hands it back to this tab (BroadcastChannel, localStorage as a fallback).
 
-interface GisId {
-  initialize(o: Record<string, unknown>): void;
-  renderButton(el: HTMLElement, o: Record<string, unknown>): void;
-  cancel(): void;
-  disableAutoSelect?(): void;
-}
-declare global {
-  interface Window {
-    google?: { accounts?: { id?: GisId } };
-  }
-}
-
-let gisScript: Promise<GisId> | null = null;
-
-function loadGis(): Promise<GisId> {
-  gisScript ??= new Promise<GisId>((resolve, reject) => {
-    if (window.google?.accounts?.id) return resolve(window.google.accounts.id);
-    const s = document.createElement('script');
-    s.src = 'https://accounts.google.com/gsi/client';
-    s.async = true;
-    s.onload = () => (window.google?.accounts?.id ? resolve(window.google.accounts.id) : reject(new Error('Google sign-in failed to load.')));
-    s.onerror = () => {
-      gisScript = null;
-      reject(new Error('Could not reach Google. Check your connection and try again.'));
-    };
-    document.head.appendChild(s);
-  });
-  return gisScript;
-}
+const CHANNEL = 'be-alert-google';
 
 /**
- * Draws Google's official button into `el`. Each render uses a fresh nonce; `onCredential`
- * receives the token once the user picks an account.
+ * Must be called straight from a click (before any await) so the browser allows the pop-up.
  */
-export async function renderGoogleButton(el: HTMLElement, onCredential: (c: GoogleCredential) => void, width: number): Promise<void> {
-  if (!googleClientId) throw new Error('Google sign-in is not configured.');
-  const [gis, nonce] = await Promise.all([loadGis(), makeNonce()]);
-  gis.initialize({
-    client_id: googleClientId,
-    nonce: nonce.hashed,
-    ux_mode: 'popup',
-    use_fedcm_for_button: true,
-    itp_support: true,
-    callback: (r: { credential?: string }) => {
-      if (r.credential) onCredential({ idToken: r.credential, nonce: nonce.raw });
-    },
-  });
-  el.replaceChildren();
-  gis.renderButton(el, {
-    type: 'standard',
-    theme: document.documentElement.classList.contains('dark') ? 'filled_black' : 'outline',
-    size: 'large',
-    shape: 'pill',
-    text: 'continue_with',
-    logo_alignment: 'center',
-    width: Math.max(200, Math.min(400, Math.round(width))),
+export function webGoogleSignIn(): Promise<GoogleCredential> {
+  if (!googleClientId) return Promise.reject(new Error('Google sign-in is not configured.'));
+  const popup = window.open('', CHANNEL, 'width=480,height=640,menubar=no,toolbar=no');
+  if (!popup) return Promise.reject(new Error('Your browser blocked the Google window. Allow pop-ups for this site and try again.'));
+  popup.document.title = 'Continue with Google';
+
+  return (async () => {
+    const nonce = await makeNonce();
+    const state = Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, '0')).join('');
+    const url = new URL('https://accounts.google.com/o/oauth2/v2/auth');
+    url.search = new URLSearchParams({
+      client_id: googleClientId,
+      redirect_uri: `${window.location.origin}${BASE_PATH}google-callback.html`,
+      response_type: 'id_token',
+      scope: 'openid email profile',
+      nonce: nonce.hashed,
+      state,
+      prompt: 'select_account',
+    }).toString();
+    popup.location.href = url.toString();
+
+    return new Promise<GoogleCredential>((resolve, reject) => {
+      const channel = 'BroadcastChannel' in window ? new BroadcastChannel(CHANNEL) : null;
+      let settled = false;
+      let focusTimer: ReturnType<typeof setTimeout> | undefined;
+      const finish = (m: { state?: string | null; id_token?: string | null; error?: string | null } | null) => {
+        if (settled || !m || m.state !== state) return;
+        settled = true;
+        cleanup();
+        if (m.id_token) resolve({ idToken: m.id_token, nonce: nonce.raw });
+        else if (!m.error || m.error === 'access_denied' || m.error === 'user_cancelled') reject(new GoogleCancelled());
+        else reject(new Error('Google sign-in didn’t finish. Please try again.'));
+      };
+      const onStorage = (e: StorageEvent) => {
+        if (e.key !== CHANNEL || !e.newValue) return;
+        try {
+          finish(JSON.parse(e.newValue));
+        } catch {
+          /* ignore */
+        }
+      };
+      // Back on this window without a result (pop-up closed): treat as cancelled after a short grace.
+      const onFocus = () => {
+        clearTimeout(focusTimer);
+        focusTimer = setTimeout(() => {
+          if (settled) return;
+          settled = true;
+          cleanup();
+          reject(new GoogleCancelled());
+        }, 2500);
+      };
+      const cleanup = () => {
+        channel?.close();
+        window.removeEventListener('storage', onStorage);
+        window.removeEventListener('focus', onFocus);
+        clearTimeout(focusTimer);
+        try {
+          window.localStorage.removeItem(CHANNEL);
+        } catch {
+          /* ignore */
+        }
+      };
+      if (channel) channel.onmessage = (e) => finish(e.data);
+      window.addEventListener('storage', onStorage);
+      window.addEventListener('focus', onFocus);
+    });
+  })().catch((e) => {
+    if (!popup.closed) popup.close();
+    throw e;
   });
 }
 
@@ -135,8 +157,6 @@ export async function forgetGoogleAccount(): Promise<void> {
     if (isNative) {
       const { SocialLogin } = await import('@capgo/capacitor-social-login');
       await SocialLogin.logout({ provider: 'google' });
-    } else {
-      window.google?.accounts?.id?.disableAutoSelect?.();
     }
   } catch {
     /* not signed in with Google */
