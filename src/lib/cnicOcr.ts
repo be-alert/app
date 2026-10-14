@@ -73,25 +73,33 @@ export function checkCnic(typed: string, r: CnicRead): { check: CnicCheck; read:
 }
 
 /**
- * Pull CNIC numbers out of OCR text. The card prints them as #####-#######-#, so that shape is
- * required; only if none is found, a line holding exactly 13 digits (hyphens lost by OCR) counts.
- * Digits are never joined across lines or with neighbouring dates.
+ * Pull CNIC numbers out of OCR text. The card prints #####-#######-#, but OCR often drops or
+ * moves a hyphen ("42101-12345671", "42101-1 2345671"). So: start at a token that begins with the
+ * 5-digit area code followed by a separator (or a token of exactly 13 digits), join it with up to
+ * two following tokens on the same line, and keep it if that adds up to exactly 13 digits.
+ * Dates (12.05.1990) and other numbers can't start such a run.
  */
 function extract(text: string): string[] {
   const found = new Set<string>();
-  const lines = text.replace(/[–—]/g, '-').split('\n');
-  for (const line of lines) for (const m of line.matchAll(/(?<!\d)(\d{5}) ?[-.] ?(\d{7}) ?[-.] ?(\d)/g)) found.add(m[1] + m[2] + m[3]);
-  if (!found.size) {
-    for (const line of lines) for (const m of line.matchAll(/(?<![\d-])\d[\d -]{11,16}\d(?![\d-])/g)) {
-      const digits = m[0].replace(/\D/g, '');
-      if (digits.length === 13) found.add(digits);
-    }
+  for (const line of text.replace(/[–—]/g, '-').split('\n')) {
+    const tokens = line.split(/\s+/).filter(Boolean);
+    tokens.forEach((tok, i) => {
+      const lone = tok.replace(/\D/g, '');
+      if (/^\d{13}$/.test(tok.replace(/[-.]/g, '')) && lone.length === 13) found.add(lone);
+      if (!/^\d{5}[-.]/.test(tok)) return;
+      let digits = '';
+      for (let j = i; j < Math.min(tokens.length, i + 3); j++) {
+        digits += tokens[j].replace(/\D/g, '');
+        if (digits.length === 13) found.add(digits);
+        if (digits.length >= 13) break;
+      }
+    });
   }
   return [...found].filter((n) => /^[1-7]\d{12}$/.test(n));
 }
 
-/** Grayscale + contrast stretch, optionally rotated, scaled so the card text is large enough. */
-async function prepare(image: Blob, rotate: 0 | 90 | 180 | 270): Promise<HTMLCanvasElement> {
+/** Grayscale + contrast stretch (optionally black-and-white), rotated, scaled so the card text is large enough. */
+async function prepare(image: Blob, rotate: 0 | 90 | 180 | 270, binarize = false): Promise<HTMLCanvasElement> {
   const bmp = await createImageBitmap(image);
   const scale = Math.min(2, 2000 / Math.max(bmp.width, bmp.height));
   const w = Math.round(bmp.width * scale);
@@ -109,15 +117,18 @@ async function prepare(image: Blob, rotate: 0 | 90 | 180 | 270): Promise<HTMLCan
   const d = img.data;
   let lo = 255;
   let hi = 0;
+  let sum = 0;
   for (let i = 0; i < d.length; i += 4) {
     const g = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
     d[i] = g;
+    sum += g;
     if (g < lo) lo = g;
     if (g > hi) hi = g;
   }
   const range = Math.max(1, hi - lo);
+  const cut = (sum / (d.length / 4)) * 0.75; // ink is clearly darker than the card's average
   for (let i = 0; i < d.length; i += 4) {
-    const v = ((d[i] - lo) * 255) / range;
+    const v = binarize ? (d[i] < cut ? 0 : 255) : ((d[i] - lo) * 255) / range;
     d[i] = d[i + 1] = d[i + 2] = v;
   }
   ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -126,18 +137,30 @@ async function prepare(image: Blob, rotate: 0 | 90 | 180 | 270): Promise<HTMLCan
 }
 
 /**
- * Read the CNIC number on a card photo. Tries the photo as taken, then rotated (cards are
- * often photographed sideways). Stops early once it finds the number the user typed.
+ * Read the CNIC number on a card photo. Upright first, in three ways (grey, black-and-white, block
+ * layout), then rotated (cards are often photographed sideways). Stops as soon as it finds the
+ * number the user typed, or any number once the upright passes have found one.
  */
 export async function readCnicNumber(image: Blob, typed?: string): Promise<CnicRead> {
   const worker = await getWorker();
+  const { PSM } = await import('tesseract.js');
   const all: string[] = [];
-  for (const rotate of [0, 90, 270, 180] as const) {
-    const canvas = await prepare(image, rotate);
-    const { data } = await worker.recognize(canvas);
+  const passes: { rotate: 0 | 90 | 180 | 270; bin: boolean; psm: string }[] = [
+    { rotate: 0, bin: false, psm: PSM.SPARSE_TEXT },
+    { rotate: 0, bin: true, psm: PSM.SPARSE_TEXT },
+    { rotate: 0, bin: false, psm: PSM.SINGLE_BLOCK },
+    { rotate: 90, bin: false, psm: PSM.SPARSE_TEXT },
+    { rotate: 270, bin: false, psm: PSM.SPARSE_TEXT },
+    { rotate: 180, bin: false, psm: PSM.SPARSE_TEXT },
+  ];
+  for (const p of passes) {
+    await worker.setParameters({ tessedit_pageseg_mode: p.psm as never });
+    const { data } = await worker.recognize(await prepare(image, p.rotate, p.bin));
     for (const n of extract(data.text)) if (!all.includes(n)) all.push(n);
     if (typed && all.includes(typed)) break;
-    if (all.length && rotate === 0) break; // found a number upright: no need to rotate
+    // Without a typed number, the first upright reading is enough. With one, try every upright
+    // treatment first (a misread digit often comes out right in another); rotate only if nothing was found.
+    if (all.length && (!typed || p.psm === PSM.SINGLE_BLOCK)) break;
   }
   const best = typed && all.includes(typed) ? typed : (all[0] ?? null);
   return { read: best, candidates: all };

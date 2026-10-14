@@ -68,7 +68,7 @@ export function PrivacyPolicy() {
           <li><strong>Location:</strong> with your permission, your device location is used to show posts within the radius you pick (1–50 km) and to place
             posts you create on the map. You can instead choose a city manually. We do not track your location in the background.</li>
           <li><strong>Content you post:</strong> posts, photos, comments, votes, RSVPs, bookmarks and business listings.</li>
-          <li><strong>CNIC verification (required only to offer services):</strong> to post services, tutoring, domestic help, rentals, jobs
+          <li><strong>CNIC verification (required to sell or offer services):</strong> to sell items, or to post services, tutoring, domestic help, rentals, jobs
             or shop deals, or to get a verified badge, your CNIC number, a photo of your CNIC (front) and a selfie
             holding it. They are stored privately and visible only to the app owner and admins for checking, never to other users. The photos are
             deleted as soon as your request is approved or rejected; we keep your CNIC number (to stop one CNIC verifying several accounts) and the
@@ -179,7 +179,7 @@ export function TermsOfUse() {
           <li>You must be at least 13 years old.</li>
           <li>Use your own email and keep access to it secure. You are responsible for activity on your account.</li>
           <li>Verified badges are given after checks and can be removed if information turns out to be false.</li>
-          <li>To post services, tutoring, domestic help, rentals, jobs or shop deals you must first verify your CNIC; to offer rides you must add a valid
+          <li>To sell items, or to post services, tutoring, domestic help, rentals, jobs or shop deals, you must first verify your CNIC and be approved by Be Alert; to offer rides you must add a valid
             driving licence. Submitting someone else’s documents is not allowed and leads to removal. Requests where the typed CNIC number doesn’t
             match the card are rejected automatically, and repeated rejected attempts are paused for 24 hours.</li>
         </ul>

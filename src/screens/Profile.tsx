@@ -297,15 +297,13 @@ function VerificationSection({ profile }: { profile: ProfileT }) {
     if (!ready) return;
     setBusy(true);
     try {
-      const r = await reading.current;
+      let r = await reading.current;
+      // Not an exact match yet: read again, aiming at the typed number (extra image treatments).
+      if (r && !r.candidates.includes(cnicDigits)) r = await readCnicNumber(front!, cnicDigits).catch(() => r);
       // OCR couldn't run at all (offline / old phone): let a moderator compare by eye.
       const result = r ? checkCnic(cnicDigits, r) : ({ check: 'unreadable', read: null } as const);
       if (r && result.check === 'unreadable' && photoTries < 2) {
         toast.error('We couldn’t read the number on your CNIC', 'Retake the photo flat, in good light, with no glare or fingers over the number.');
-        return;
-      }
-      if (result.check === 'near' && photoTries < 2) {
-        toast.error('The number doesn’t quite match your card', 'Check the number you typed, or retake a sharper photo of the card.');
         return;
       }
       const outcome = await api.auth.submitVerification(
@@ -336,7 +334,7 @@ function VerificationSection({ profile }: { profile: ProfileT }) {
       id="verification"
       icon={ShieldCheck}
       title="CNIC verification"
-      description="Needed only if you offer services, tutoring, domestic help, rentals, jobs or shop deals. Verified members get a blue badge and a trust boost."
+      description="Needed to sell items, offer services, tutoring, domestic help, rentals, jobs or shop deals. After your CNIC is approved you can post in these sections and get a blue badge."
     >
       {status === 'approved' && v !== 'expired' ? (
         <div className="flex items-center gap-3 rounded-2xl bg-primary-600/5 p-4 ring-1 ring-primary-500/20">
@@ -569,8 +567,11 @@ function CardCheck({ state, photo, cnicValid }: { state: string; photo: ReturnTy
   if (photo.check === 'near')
     return (
       <p className={cn(box, 'bg-warning-50 text-warning-700 dark:bg-warning-500/10 dark:text-warning-500')}>
-        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" /> Your card seems to show <b className="mx-1 tracking-wider">{shown}</b>. Check the number you
-        typed, or retake a sharper photo.
+        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+        <span>
+          Your card seems to show <b className="tracking-wider">{shown}</b>. Check the number you typed. If it’s right, submit — a sharper photo
+          helps, and Be Alert will compare it during review.
+        </span>
       </p>
     );
   return (
