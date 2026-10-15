@@ -10,6 +10,9 @@ const files = [
   ['node_modules/tesseract.js-core/tesseract-core-lstm.wasm.js', 'tesseract-core-lstm.wasm.js'],
   ['node_modules/tesseract.js-core/tesseract-core-simd-lstm.wasm.js', 'tesseract-core-simd-lstm.wasm.js'],
   ['node_modules/@tesseract.js-data/eng/4.0.0_best_int/eng.traineddata.gz', 'eng.traineddata.gz'],
+  // Their licences travel with them (Apache-2.0 asks for this).
+  ['node_modules/tesseract.js/LICENSE.md', 'LICENSE-tesseract.js.txt'],
+  ['node_modules/tesseract.js-core/LICENSE', 'LICENSE-tesseract.js-core.txt'],
 ];
 
 mkdirSync(out, { recursive: true });

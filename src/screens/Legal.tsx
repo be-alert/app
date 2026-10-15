@@ -228,6 +228,15 @@ export function TermsOfUse() {
       </section>
 
       <section>
+        <h2>Open-source software</h2>
+        <p>
+          Be Alert is built with open-source software, including React, Supabase, Capacitor, Leaflet with OpenStreetMap map data (© OpenStreetMap
+          contributors), and Tesseract.js, which reads the CNIC number on your own device. Each is used under its own licence (MIT, Apache 2.0 or
+          ODbL); the Tesseract.js licences are published alongside it at <a href="https://app.bealert.online/ocr/LICENSE-tesseract.js.txt" className="font-semibold text-primary-600 underline">app.bealert.online/ocr</a>.
+        </p>
+      </section>
+
+      <section>
         <h2>Changes and contact</h2>
         <p>We may update these terms; continuing to use the app means you accept the updated terms. These terms are governed by the laws of Pakistan.</p>
         <Contact />
