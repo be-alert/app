@@ -229,13 +229,13 @@ export function HomeFeed() {
             </div>
           </section>
 
-          <div className="mb-3 mt-3 flex items-center justify-between gap-3">
-            <p className="text-sm text-ink-2">
+          <div className="mb-3 mt-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+            <p className="whitespace-nowrap text-sm text-ink-2">
               {loading ? (
                 'Loading…'
               ) : (
                 <>
-                  <b className="text-ink">{feed.length}</b> {category ? getCategory(category).label.toLowerCase() : 'posts'} within {radar.radiusKm} km
+                  <b className="text-ink">{feed.length}</b> {category ? getCategory(category).short.toLowerCase() : 'posts'} · {radar.radiusKm} km
                 </>
               )}
             </p>
@@ -498,16 +498,17 @@ function InstallCard() {
   const isAndroidPhone = typeof navigator !== 'undefined' && /android/i.test(navigator.userAgent);
   if (!androidAppUrl || !isAndroidPhone || dismissed) return null;
   return (
-    <div className="mb-4 flex items-center gap-3 rounded-2xl border border-primary-600/25 bg-primary-600/5 p-3.5 lg:hidden">
+    <div className="mb-4 flex items-start gap-3 rounded-2xl border border-primary-600/25 bg-primary-600/5 p-3.5 lg:hidden">
       <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-600 text-white">
         <Download className="h-5 w-5" />
       </span>
+      {/* Button sits under the text so the title keeps the full width on small phones. */}
       <div className="min-w-0 flex-1">
         <p className="font-bold text-ink">Get the Be Alert app</p>
         <p className="text-[13px] text-ink-2">Same account and posts — with GPS alerts on the go.</p>
+        <a className="btn-primary btn-sm mt-2.5 inline-flex" href={androidAppUrl} target="_blank" rel="noopener noreferrer">Get app</a>
       </div>
-      <a className="btn-primary btn-sm shrink-0" href={androidAppUrl} target="_blank" rel="noopener noreferrer">Get app</a>
-      <button aria-label="Dismiss" className="icon-btn h-8 w-8 shrink-0" onClick={() => setDismissed(true)}>
+      <button aria-label="Dismiss" className="icon-btn -mr-1 -mt-1 h-8 w-8 shrink-0" onClick={() => setDismissed(true)}>
         <X className="h-4 w-4" />
       </button>
     </div>

@@ -46,7 +46,8 @@ export function Onboarding() {
             <LogoMark size={34} />
             <span className="text-[17px] font-extrabold tracking-tight">Be Alert</span>
           </div>
-          <div className="relative mt-8 lg:mt-0">
+          {/* On shorter phones the illustration is dropped so the steps and buttons fit without scrolling. */}
+          <div className="relative mt-8 lg:mt-0 max-lg:[@media(max-height:860px)]:hidden">
             <RadarScope center={radar.coords} radiusKm={3} posts={[]} size={210} />
             {[
               [22, 30, '#dc2626'],
@@ -57,12 +58,12 @@ export function Onboarding() {
               <span key={`${x}${y}`} className="absolute h-3 w-3 rounded-full ring-2 ring-white/80" style={{ left: `${x}%`, top: `${y}%`, background: c as string }} />
             ))}
           </div>
-          <p className="relative mt-8 text-center text-2xl font-extrabold tracking-tight lg:text-[28px]">Your Neighbourhood, One App</p>
+          <p className="relative mt-8 text-center text-2xl font-extrabold tracking-tight max-lg:[@media(max-height:860px)]:mt-5 lg:text-[28px]">Your Neighbourhood, One App</p>
           <p className="relative mt-2 max-w-xs text-center text-sm text-white/75">Everything happening within 1–50 km of you — in one place.</p>
         </div>
 
         {/* Steps */}
-        <div className="flex flex-1 flex-col px-6 pb-[max(env(safe-area-inset-bottom),1.5rem)] pt-7 lg:px-10 lg:py-10">
+        <div className="flex flex-1 flex-col px-6 pb-[max(env(safe-area-inset-bottom),1.5rem)] pt-7 max-lg:pb-0 lg:px-10 lg:py-10">
           <div className="mb-6 flex gap-1.5" role="img" aria-label={`Step ${step + 1} of 3`}>
             {[0, 1, 2].map((i) => (
               <span key={i} className={cn('h-1.5 flex-1 rounded-full transition-colors', i <= step ? 'bg-primary-600' : 'bg-line')} />
@@ -204,7 +205,8 @@ export function Onboarding() {
             </div>
           )}
 
-          <div className="mt-8 flex items-center gap-3">
+          {/* Phones: buttons stay pinned to the bottom of the screen; desktop: normal flow. */}
+          <div className="sticky bottom-0 -mx-6 mt-8 flex items-center gap-3 border-t border-line/60 bg-bg/95 px-6 pb-[max(env(safe-area-inset-bottom),0.75rem)] pt-3 backdrop-blur lg:static lg:mx-0 lg:border-0 lg:bg-transparent lg:p-0 lg:backdrop-blur-none">
             {step > 0 ? (
               <button className="btn-ghost" onClick={() => setStep(step - 1)}>
                 Back
