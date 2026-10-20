@@ -24,6 +24,7 @@ try {
     { dir: 'privacy', component: legal.PrivacyPolicy, title: 'Privacy Policy', description: 'How Be Alert collects, uses and protects your information.' },
     { dir: 'terms', component: legal.TermsOfUse, title: 'Terms of Use', description: 'The rules for using Be Alert.' },
     { dir: 'delete-account', component: legal.DeleteAccount, title: 'Delete your account', description: 'How to permanently delete your Be Alert account and data.' },
+    { dir: 'child-safety', component: legal.ChildSafety, title: 'Child Safety Standards', description: 'Be Alert child safety standards and how to report child sexual abuse and exploitation.' },
   ];
   for (const p of pages) {
     const body = renderToStaticMarkup(createElement(p.component));
@@ -36,7 +37,7 @@ try {
     if (!html.includes(body)) throw new Error(`${file}: could not find the empty #root to fill`);
     writeFileSync(file, html);
   }
-  console.log('✔ privacy/, terms/ and delete-account/ prerendered with their full text');
+  console.log('✔ privacy/, terms/, delete-account/ and child-safety/ prerendered with their full text');
 } finally {
   await vite.close();
 }

@@ -31,6 +31,7 @@ const NotFound = named(() => import('@/screens/NotFound'), 'NotFound');
 const PrivacyPolicy = named(() => import('@/screens/Legal'), 'PrivacyPolicy');
 const TermsOfUse = named(() => import('@/screens/Legal'), 'TermsOfUse');
 const DeleteAccount = named(() => import('@/screens/Legal'), 'DeleteAccount');
+const ChildSafety = named(() => import('@/screens/Legal'), 'ChildSafety');
 const AdminLogin = named(() => import('@/screens/admin/AdminLogin'), 'AdminLogin');
 const AdminDashboard = named(() => import('@/screens/admin/AdminDashboard'), 'AdminDashboard');
 
@@ -131,6 +132,7 @@ export default function App() {
                       <Route path="privacy" element={<PrivacyPolicy />} />
                       <Route path="terms" element={<TermsOfUse />} />
                       <Route path="delete-account" element={<DeleteAccount />} />
+                      <Route path="child-safety" element={<ChildSafety />} />
                       <Route path="*" element={<NotFound />} />
                     </Route>
                   </Routes>

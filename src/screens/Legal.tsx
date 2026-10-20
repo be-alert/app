@@ -299,6 +299,71 @@ export function DeleteAccount() {
   );
 }
 
+/** Published child safety standards (Google Play requires these for social apps). */
+export function ChildSafety() {
+  const email = SUPPORT_EMAIL || 'razachaudhary5512@gmail.com';
+  return (
+    <Doc title="Child Safety Standards">
+      <p>
+        Be Alert has zero tolerance for child sexual abuse and exploitation (CSAE), including child sexual abuse material (CSAM), grooming,
+        sextortion and trafficking. These standards apply to everything on Be Alert — posts, photos, comments, profiles and business listings.
+      </p>
+      <WhereWeAre />
+
+      <section>
+        <h2>What is not allowed</h2>
+        <ul>
+          <li>Any content that sexualises, exploits or endangers children, in any form, including drawn, edited or AI-generated content.</li>
+          <li>Contacting, grooming or soliciting a child, or arranging to meet a child for any harmful purpose.</li>
+          <li>Sharing, requesting or linking to child sexual abuse material.</li>
+          <li>Using lost &amp; found, jobs, services or any other section to target, track or exploit children.</li>
+        </ul>
+      </section>
+
+      <section>
+        <h2>Who can use Be Alert</h2>
+        <p>
+          Be Alert is meant for adults. Sellers and service providers must verify their CNIC and be approved by our team before they can post in those
+          sections.
+        </p>
+      </section>
+
+      <section>
+        <h2>How to report</h2>
+        <ul>
+          <li><strong>In the app:</strong> tap “Report” on any post. Every report is reviewed by the Be Alert team, and posts with several reports are hidden until reviewed. To report a comment or a profile, email us.</li>
+          <li>
+            <strong>By email:</strong>{' '}
+            <a className="font-semibold text-primary-600 underline" href={`mailto:${email}`}>
+              {email}
+            </a>{' '}
+            — our child safety contact.
+          </li>
+          <li>If a child is in immediate danger, call the police (15) or Rescue 1122 first.</li>
+        </ul>
+      </section>
+
+      <section>
+        <h2>What we do</h2>
+        <ul>
+          <li>Remove violating content as soon as we become aware of it and permanently ban the accounts involved.</li>
+          <li>Preserve the relevant records and report CSAM and child exploitation to the authorities, including the FIA Cyber Crime Wing in Pakistan and the National Center for Missing &amp; Exploited Children (NCMEC).</li>
+          <li>Cooperate with law enforcement requests in line with applicable law.</li>
+        </ul>
+      </section>
+
+      <section>
+        <h2>Compliance</h2>
+        <p>Be Alert complies with the child safety laws that apply to it and with Google Play’s Child Safety Standards policy.</p>
+      </section>
+      <p className="text-sm">
+        See also our <Link to="/terms" className="font-semibold text-primary-600 underline">Terms of Use</Link> and{' '}
+        <Link to="/privacy" className="font-semibold text-primary-600 underline">Privacy Policy</Link>.
+      </p>
+    </Doc>
+  );
+}
+
 function DeleteAccountActions() {
   const { user, profile, requireAuth, deleteMyAccount } = useAuth();
   const toast = useToast();
