@@ -28,6 +28,7 @@ import { useLocalStorage } from '@/lib/hooks';
 import { useTheme } from '@/lib/theme';
 import { useBackend } from '@/data';
 import { cn } from '@/lib/format';
+import { withTimeout } from '@/lib/timeout';
 
 const ONBOARDED_KEY = 'sr_onboarded_v1';
 
@@ -95,6 +96,7 @@ function NamePrompt() {
   const { user, profile, updateProfile } = useAuth();
   const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(false);
   const open = Boolean(user && profile && !profile.display_name?.trim());
   return (
     <Sheet open={open} onClose={() => {}} title="Welcome to Be Alert! 👋" description="What should neighbours call you? This name appears on your posts and comments." size="sm">
@@ -103,11 +105,18 @@ function NamePrompt() {
           e.preventDefault();
           if (name.trim().length < 2) return;
           setBusy(true);
-          await updateProfile({ display_name: name.trim() }).catch(() => {});
-          setBusy(false);
+          setError(false);
+          try {
+            await withTimeout(updateProfile({ display_name: name.trim() }), 15000);
+          } catch {
+            setError(true);
+          } finally {
+            setBusy(false);
+          }
         }}
       >
         <input data-autofocus className="input" placeholder="e.g., Ayesha Khan" value={name} onChange={(e) => setName(e.target.value)} maxLength={40} />
+        {error && <p className="mt-2 text-sm font-medium text-danger-600">Could not save your name. Check your internet connection and try again.</p>}
         <button className="btn-primary mt-4 w-full" disabled={busy || name.trim().length < 2}>
           {busy ? 'Saving…' : 'Continue'}
         </button>

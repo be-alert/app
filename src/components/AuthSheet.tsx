@@ -7,6 +7,7 @@ import { useApi } from '@/data';
 import type { EmailCodeKind } from '@/data/api';
 import { Turnstile, captchaEnabled } from '@/components/Turnstile';
 import { cn } from '@/lib/format';
+import { withTimeout } from '@/lib/timeout';
 
 type Mode = 'signin' | 'signup';
 type Step = 'start' | 'code' | 'newPassword' | 'name';
@@ -24,6 +25,7 @@ const MAX_CODE = 10;
  */
 export function AuthSheet() {
   const {
+    user,
     authPrompt,
     closeAuthPrompt,
     sendEmailOtp,
@@ -253,8 +255,21 @@ export function AuthSheet() {
     const n = name.trim();
     if (n.length < 2) return setError('Please enter at least 2 characters.');
     setBusy(true);
-    const session = await api.auth.getSession();
-    if (session) await api.auth.updateProfile(session.id, { display_name: n });
+    setError(null);
+    try {
+      // Never leave the button spinning: give up after 15 s and let the user retry.
+      await withTimeout(
+        (async () => {
+          const id = user?.id ?? (await api.auth.getSession())?.id;
+          if (!id) throw new Error('Not signed in');
+          await api.auth.updateProfile(id, { display_name: n });
+        })(),
+        15000
+      );
+    } catch {
+      setBusy(false);
+      return setError('Could not save your name. Check your internet connection and try again.');
+    }
     setBusy(false);
     toast.success(`Welcome to Be Alert, ${n.split(' ')[0]}!`);
     closeAuthPrompt(true);

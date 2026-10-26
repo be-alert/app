@@ -176,7 +176,12 @@ const auth: AuthApi = {
     return toSession(data.session?.user);
   },
   onChange(cb) {
-    const { data } = sb().auth.onAuthStateChange((_e, s) => cb(toSession(s?.user)));
+    // Run the callback after supabase-js releases its auth lock: listeners make Supabase calls,
+    // and calling them inside the event deadlocks getSession() (the "Saving…" hang on sign-up).
+    const { data } = sb().auth.onAuthStateChange((_e, s) => {
+      const u = toSession(s?.user);
+      setTimeout(() => cb(u), 0);
+    });
     return () => data.subscription.unsubscribe();
   },
   async sendEmailOtp(email, captchaToken) {
